@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinguaBridge - Host Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- QRCode JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="host-body">
+    <div class="glass-container setup-screen" id="setup-screen">
+        <h1 class="logo">LinguaBridge Host</h1>
+        <p class="subtitle">Create a secure translation room</p>
+        
+        <div class="input-group">
+            <label for="api-key">Groq API Key (Stored Locally)</label>
+            <input type="password" id="api-key" placeholder="gsk_..." autocomplete="off">
+            <small class="help-text">This key is sent securely to the server RAM and destroyed when the room closes.</small>
+        </div>
+
+        <button id="create-btn" class="btn primary">Start Room</button>
+        <div id="setup-error" class="error-text"></div>
+    </div>
+
+    <div class="dashboard-screen hidden" id="dashboard-screen">
+        <header class="dash-header">
+            <h2>Live Session</h2>
+            <button id="end-btn" class="btn danger small">End Session</button>
+        </header>
+
+        <div class="dash-grid">
+            <div class="dash-card qr-card">
+                <h3>Invite Participants</h3>
+                <div id="qrcode"></div>
+                <div class="room-code-display">
+                    Code: <strong id="host-room-code">----</strong>
+                </div>
+                <button id="share-btn" class="btn small" style="margin-bottom: 1rem; background: var(--glass-bg); border: 1px solid var(--glass-border); color: white;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                    Send Link (WhatsApp/Email)
+                </button>
+                <p class="help-text text-center" style="margin-bottom:1rem;">Or scan to join</p>
+                
+                <hr style="width:100%; border-color:var(--glass-border); margin:1rem 0;">
+                
+                <h3>Room Mode</h3>
+                <div style="display:flex; gap:1rem; width:100%; margin-top:1rem;">
+                    <button id="mode-conf" class="btn primary small active" style="flex:1;">Conference (Mute All)</button>
+                    <button id="mode-meet" class="btn small" style="flex:1; background:var(--glass-bg); color:white; border:1px solid var(--glass-border);">Meeting (Free Speak)</button>
+                </div>
+            </div>
+
+            <div class="dash-card">
+                <h3>Participants (<span id="participant-count">0</span>)</h3>
+                <ul class="participant-list" id="participant-list">
+                    <!-- Participants injected here -->
+                    <li class="empty-state">No one has joined yet.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="host.js"></script>
+</body>
+</html>

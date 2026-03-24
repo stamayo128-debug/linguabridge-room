@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinguaBridge Room - Participant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-container join-screen" id="join-screen">
+        <h1 class="logo">LinguaBridge.</h1>
+        <p class="subtitle">Join a real-time translation room</p>
+        
+        <div class="input-group">
+            <label for="room-code">Room Code</label>
+            <input type="text" id="room-code" placeholder="e.g. 1234" maxlength="4" autocomplete="off">
+        </div>
+        
+        <div class="input-group">
+            <label for="participant-name">Your Name</label>
+            <input type="text" id="participant-name" placeholder="John Doe" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label for="participant-lang">Your Spoken/Native Language</label>
+            <select id="participant-lang">
+                <option value="es">Español (ES)</option>
+                <option value="en">English (EN)</option>
+                <option value="fr">Français (FR)</option>
+                <option value="de">Deutsch (DE)</option>
+                <option value="ja">日本語 (JA)</option>
+                <option value="zh">中文 (ZH)</option>
+                <option value="ar">العربية (AR)</option>
+                <option value="it">Italiano (IT)</option>
+                <option value="pt">Português (PT)</option>
+            </select>
+        </div>
+
+        <button id="join-btn" class="btn primary">Join Room</button>
+        <div id="join-error" class="error-text"></div>
+    </div>
+
+    <div class="room-screen hidden" id="room-screen">
+        <header class="room-header">
+            <div class="room-info">
+                <span class="pulse-indicator"></span>
+                <h2>Room <span id="display-room-code"></span></h2>
+            </div>
+            <div class="user-info" style="display:flex; align-items:center; gap:0.5rem;">
+                <span id="display-name"></span>
+                <span class="lang-badge" id="display-lang"></span>
+                <button id="tts-toggle" class="btn small" style="background:var(--primary); color:white; padding:0.3rem 0.6rem; border-radius:8px;">
+                    🔊 Audio ON
+                </button>
+            </div>
+        </header>
+
+        <main class="transcript-area" id="transcript-area">
+            <div class="welcome-msg">Waiting for speech...</div>
+            <!-- Subtitles will appear here -->
+        </main>
+
+        <footer class="room-footer" style="flex-direction:column; align-items:center; gap:0.5rem;">
+            <div id="mic-status-text" style="color:var(--text-muted); font-size:0.85rem; height:1.2em;">Microphone is OFF</div>
+            <button id="mic-btn" class="btn mic-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                Tap to Unmute
+            </button>
+        </footer>
+    </div>
+
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
