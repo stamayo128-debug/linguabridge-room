@@ -18,7 +18,7 @@ try {
 }
 
 // ─── Constants & Configuration ──────────────────────────────────────────────
-const NGROK_AUTHTOKEN = process.env.NGROK_AUTHTOKEN || '39uD57xDDVMODx2WnOUJG6tMhTa_3UhKehWQnbvXLPbvofkjv';
+const NGROK_AUTHTOKEN = process.env.NGROK_AUTHTOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const HOST_PASSWORD = process.env.HOST_PASSWORD || 'admin123'; // Clave para crear salas
@@ -86,7 +86,12 @@ io.on('connection', (socket) => {
     console.log(`Room created: ${roomCode}`);
   });
 
-    socket.to(roomCode).emit(mode === 'conference' ? 'host:force_mute' : 'host:allow_speak');
+  socket.on('host:toggle_mode', ({ roomCode, mode }) => {
+    const room = rooms[roomCode];
+    if (room && room.hostId === socket.id) {
+        room.mode = mode;
+        socket.to(roomCode).emit(mode === 'conference' ? 'host:force_mute' : 'host:allow_speak');
+    }
   });
 
   socket.on('host:mute_user', ({ targetId }) => {
@@ -329,9 +334,6 @@ server.listen(PORT, '0.0.0.0', async () => {
         console.log('ngrok no disponible, usando localhost');
         PUBLIC_URL = `http://localhost:${PORT}`;
       }
-      PUBLIC_URL = listener.url();
-      console.log(`\n🌐 Public HTTPS URL: ${PUBLIC_URL}`);
-      console.log(`   Host panel:        ${PUBLIC_URL}/host.html\n`);
     } catch (e) {
       console.error('ngrok error:', e.message);
       PUBLIC_URL = `http://localhost:${PORT}`;
