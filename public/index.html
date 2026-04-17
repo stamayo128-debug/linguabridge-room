@@ -6,8 +6,10 @@
     <title>LinguaBridge Room - Participant</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 </head>
 <body>
+    <div id="visualizer-container"></div>
     <div class="glass-container join-screen" id="join-screen">
         <h1 class="logo">LinguaBridge.</h1>
         <p class="subtitle">Join a real-time translation room</p>
@@ -39,6 +41,13 @@
 
         <button id="join-btn" class="btn primary">Join Room</button>
         <div id="join-error" class="error-text"></div>
+
+        <div class="divider">
+            <span>OR</span>
+        </div>
+
+        <p class="subtitle" style="margin-top: 1rem; font-size: 0.9rem;">Want to host a session?</p>
+        <a href="host.html" class="btn secondary" style="text-decoration: none; text-align: center; display: block; width: 100%; box-sizing: border-box;">Create a New Room</a>
     </div>
 
     <div class="room-screen hidden" id="room-screen">
@@ -47,12 +56,19 @@
                 <span class="pulse-indicator"></span>
                 <h2>Room <span id="display-room-code"></span></h2>
             </div>
-            <div class="user-info" style="display:flex; align-items:center; gap:0.5rem;">
-                <span id="display-name"></span>
-                <span class="lang-badge" id="display-lang"></span>
-                <button id="tts-toggle" class="btn small" style="background:var(--primary); color:white; padding:0.3rem 0.6rem; border-radius:8px;">
-                    🔊 Audio ON
-                </button>
+            <div class="user-info" style="display:flex; align-items:center; gap:0.5rem; width:100%; justify-content: flex-end;">
+                <span id="display-name" style="margin-right:auto;"></span>
+                <select id="header-lang-select" class="btn small" style="background:rgba(15, 23, 42, 0.6); color:white; border:1px solid var(--glass-border); padding:0.3rem; border-radius:8px;">
+                    <option value="es">ES</option>
+                    <option value="en">EN</option>
+                    <option value="fr">FR</option>
+                    <option value="de">DE</option>
+                    <option value="ja">JA</option>
+                    <option value="zh">ZH</option>
+                    <option value="ar">AR</option>
+                    <option value="it">IT</option>
+                    <option value="pt">PT</option>
+                </select>
             </div>
         </header>
 
@@ -61,12 +77,16 @@
             <!-- Subtitles will appear here -->
         </main>
 
-        <footer class="room-footer" style="flex-direction:column; align-items:center; gap:0.5rem;">
+        <footer class="room-footer" style="flex-direction:column; align-items:center; gap:0.5rem; width:100%; max-width:300px; margin:0 auto;">
             <div id="mic-status-text" style="color:var(--text-muted); font-size:0.85rem; height:1.2em;">Microphone is OFF</div>
             <button id="mic-btn" class="btn mic-btn">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
                 Tap to Unmute
             </button>
+            <div style="width:100%; margin-top:1rem; text-align:center;">
+                <label for="sensitivity-slider" style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:5px;">Sensibilidad al ruido (Si se queda pillado, bájalo)</label>
+                <input type="range" id="sensitivity-slider" min="0.005" max="0.1" step="0.005" value="0.015" style="width:100%;">
+            </div>
         </footer>
     </div>
 

@@ -11,38 +11,141 @@ const joinError = document.getElementById('join-error');
 const transcriptArea = document.getElementById('transcript-area');
 const micBtn = document.getElementById('mic-btn');
 const micStatusText = document.getElementById('mic-status-text');
-const ttsToggle = document.getElementById('tts-toggle');
-
+const sensitivitySlider = document.getElementById('sensitivity-slider');
 const displayRoomCode = document.getElementById('display-room-code');
 const displayName = document.getElementById('display-name');
-const displayLang = document.getElementById('display-lang');
 
-// State
+// ─── Three.js Intelligence Visualizer ───────────────────────────────────────
+let scene, camera, renderer, particles, analyser, dataArray;
+
+// ─── Browser Speech Recognition (Free & Fast) ──────────────────────────────
+const USE_BROWSER_STT = true; // Set to false to use Groq/Whisper on server
+let recognition;
+
+function initBrowserSTT() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        console.warn("Este navegador no soporta reconocimiento de voz nativo.");
+        return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = currentLang;
+
+    recognition.onresult = (event) => {
+        const text = event.results[event.results.length - 1][0].transcript.trim();
+        if (text) {
+            console.log("Browser STT:", text);
+            socket.emit('translate:text', {
+                roomCode: currentRoomCode,
+                text: text,
+                speakerName: currentName,
+                speakerLang: currentLang
+            });
+        }
+    };
+
+    recognition.onerror = (err) => console.error("Speech Recognition Error:", err.error);
+    recognition.onend = () => { 
+        if (isMicOn && USE_BROWSER_STT) {
+            try { recognition.start(); } catch(e) {}
+        }
+    };
+}
+
+function initThreeVisualizer() {
+    const container = document.getElementById('visualizer-container');
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    const geometry = new THREE.IcosahedronGeometry(2, 4); // High density points
+    const material = new THREE.PointsMaterial({
+        color: 0x3b82f6,
+        size: 0.05,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending
+    });
+
+    particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+    camera.position.z = 5;
+
+    function animate() {
+        requestAnimationFrame(animate);
+        particles.rotation.y += 0.002;
+        particles.rotation.x += 0.001;
+
+        if (analyser && isMicOn) {
+            analyser.getByteFrequencyData(dataArray);
+            const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            const scale = 1 + (avg / 150);
+            particles.scale.set(scale, scale, scale);
+            material.color.setHSL(0.6 + (avg / 500), 0.8, 0.5);
+        } else {
+            particles.scale.set(1, 1, 1);
+            material.color.setHex(0x3b82f6);
+        }
+        renderer.render(scene, camera);
+    }
+    animate();
+}
+
+window.addEventListener('resize', () => {
+    if (!camera || !renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─── Voice Management (Web Speech API) ──────────────────────────────────────
+let bestVoices = {};
+function loadVoices() {
+    const voices = window.speechSynthesis.getVoices();
+    const targets = ['es', 'en', 'fr', 'de', 'ja', 'zh', 'ar', 'it', 'pt'];
+    targets.forEach(lang => {
+        // Prioritize Neural or Google voices
+        bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Neural') || v.name.includes('Google'))) 
+                           || voices.find(v => v.lang.startsWith(lang));
+    });
+}
+window.speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+// ─── State & Initialization ───────────────────────────────────────────────
 let mediaRecorder;
 let audioChunks = [];
 let isMicOn = false;
 let isHostMuted = false;
-let isTTSOn = true;
+let currentRoomCode = '';
+let currentName = '';
+let currentLang = '';
+let audioQueue = [];
+let isPlaying = false;
 
-// TTS Queue Control
-const ttsQueue = [];
-let isPlayingTTS = false;
-
-const langLabels = {
-    es: 'ESPAÑOL', en: 'ENGLISH', fr: 'FRANÇAIS', de: 'DEUTSCH',
-    ja: '日本語', zh: '中文', ar: 'العربية', it: 'ITALIANO', pt: 'PORTUGUÊS'
-};
-
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.has('room')) roomCodeInput.value = urlParams.get('room');
+const headerLangSelect = document.getElementById('header-lang-select');
+headerLangSelect.addEventListener('change', () => {
+    currentLang = headerLangSelect.value;
+    socket.emit('participant:change_lang', { roomCode: currentRoomCode, lang: currentLang });
+});
 
 joinBtn.addEventListener('click', () => {
-    const roomCode = roomCodeInput.value.trim();
-    const name = nameInput.value.trim();
-    const lang = langSelect.value;
-    if (!roomCode || !name) { joinError.textContent = "Please enter room code and your name."; return; }
-    joinError.textContent = "Connecting...";
-    socket.emit('participant:join_room', { roomCode, name, lang });
+    currentRoomCode = roomCodeInput.value.trim();
+    currentName = nameInput.value.trim();
+    currentLang = document.getElementById('participant-lang').value;
+    headerLangSelect.value = currentLang;
+
+    if (!currentRoomCode || !currentName) { joinError.textContent = "Se requiere código y nombre."; return; }
+    joinError.textContent = "Conectando...";
+    
+    initAudio();
+    initThreeVisualizer();
+    socket.emit('participant:join_room', { roomCode: currentRoomCode, name: currentName, lang: currentLang });
 });
 
 socket.on('participant:joined', (data) => {
@@ -50,201 +153,146 @@ socket.on('participant:joined', (data) => {
     roomScreen.classList.remove('hidden');
     displayRoomCode.textContent = data.roomCode;
     displayName.textContent = data.name;
-    displayLang.textContent = langLabels[data.lang] || data.lang.toUpperCase();
-    
-    // Resume audio context for Text-to-Speech immediately upon entering
-    if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); }
-    
-    initAudio();
 });
 
-socket.on('error', (msg) => { joinError.textContent = msg; });
-
-// Audio Logic with VAD
-let audioContext, analyser, microphone, scriptProcessor;
+// ─── Audio & VAD ────────────────────────────────────────────────────────────
+let audioContext, microphone, scriptProcessor;
 let isSpeaking = false;
 let silenceStart = Date.now();
-const SILENCE_THRESHOLD_MS = 1500; 
-const VOX_THRESHOLD = 5; 
+let speechStart = Date.now();
+const SILENCE_THRESHOLD_MS = 300; 
 
 async function initAudio() {
+    if (audioContext) return;
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
-        let options = { mimeType: 'audio/webm' };
-        if (!MediaRecorder.isTypeSupported('audio/webm')) options = { mimeType: 'audio/ogg' };
         
-        mediaRecorder = new MediaRecorder(stream, options);
-
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) audioChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-            if (audioChunks.length === 0) return;
-            const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-            audioChunks = [];
-            socket.emit('audio:stream_chunk', { audio: audioBlob });
-            
-            if (isMicOn && !isHostMuted) mediaRecorder.start();
-        };
-
-        isMicOn = true;
-        micBtn.classList.add('active');
-        micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="6" height="6"></rect></svg> Tap to Mute';
-        micStatusText.textContent = "Mic ON - Auto Listening";
-        micStatusText.style.color = "var(--text-main)";
-        
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         analyser = audioContext.createAnalyser();
-        microphone = audioContext.createMediaStreamSource(stream);
-        scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+        analyser.fftSize = 256;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-        analyser.smoothingTimeConstant = 0.8;
-        analyser.fftSize = 1024;
+        microphone = audioContext.createMediaStreamSource(stream);
+        scriptProcessor = audioContext.createScriptProcessor(1024, 1, 1);
+        
         microphone.connect(analyser);
-        analyser.connect(scriptProcessor);
+        microphone.connect(scriptProcessor);
         scriptProcessor.connect(audioContext.destination);
 
-        scriptProcessor.onaudioprocess = () => {
+        isMicOn = true;
+        updateMicUI();
+
+        if (USE_BROWSER_STT) {
+            initBrowserSTT();
+            recognition.start();
+
+            // Refresh listener for browser mode
+            const newMicBtn = micBtn.cloneNode(true);
+            micBtn.parentNode.replaceChild(newMicBtn, micBtn);
+            newMicBtn.addEventListener('click', () => {
+                if (isHostMuted) return;
+                isMicOn = !isMicOn;
+                if (isMicOn) try { recognition.start(); } catch(e) {}
+                else recognition.stop();
+                updateMicUI();
+            });
+            return;
+        }
+
+        scriptProcessor.onaudioprocess = (e) => {
             if (!isMicOn || isHostMuted) return;
+            const data = e.inputBuffer.getChannelData(0);
+            const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
+            const umbral = parseFloat(sensitivitySlider.value);
+            const hayVoz = rms > umbral;
 
-            const array = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(array);
-            let values = 0, length = array.length;
-            for (let i = 0; i < length; i++) values += array[i];
-            const average = values / length;
-
-            if (average > VOX_THRESHOLD) {
+            if (hayVoz) {
                 if (!isSpeaking) {
                     isSpeaking = true;
-                    if (mediaRecorder.state === 'inactive') mediaRecorder.start();
-                    micStatusText.textContent = "Listening...";
-                    micStatusText.style.color = "#10b981";
+                    speechStart = Date.now();
+                    audioChunks = [];
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
+                    mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) audioChunks.push(ev.data); };
+                    mediaRecorder.onstop = enviarAudio;
+                    mediaRecorder.start();
+                    micStatusText.textContent = "Escuchando...";
                 }
                 silenceStart = Date.now();
             } else {
                 if (isSpeaking && (Date.now() - silenceStart > SILENCE_THRESHOLD_MS)) {
                     isSpeaking = false;
-                    micStatusText.textContent = "Processing...";
-                    micStatusText.style.color = "var(--text-muted)";
-                    if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+                    micStatusText.textContent = "Procesando...";
+                    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
                 }
             }
         };
 
-        micBtn.addEventListener('click', toggleMic);
-
-    } catch (err) {
-        console.error('Mic error:', err);
-        joinError.textContent = "Microphone access is required.";
-    }
+        micBtn.addEventListener('click', () => {
+            if (isHostMuted) return;
+            if (audioContext.state === 'suspended') audioContext.resume();
+            isMicOn = !isMicOn;
+            updateMicUI();
+        });
+    } catch (err) { joinError.textContent = "Error al iniciar micrófono."; }
 }
 
-function toggleMic() {
-    if (isHostMuted) { alert("The host has muted your microphone."); return; }
-    
-    isMicOn = !isMicOn;
-    if (isMicOn) {
-        micBtn.classList.add('active');
-        micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="6" height="6"></rect></svg> Tap to Mute';
-        micStatusText.textContent = "Mic ON - Waiting for speech";
-        micStatusText.style.color = "var(--text-main)";
-        audioContext.resume();
-    } else {
-        micBtn.classList.remove('active');
-        micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg> Tap to Unmute';
-        micStatusText.textContent = "Microphone is OFF";
-        micStatusText.style.color = "var(--text-muted)";
-        isSpeaking = false;
-        if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-    }
+function updateMicUI() {
+    micBtn.classList.toggle('active', isMicOn);
+    micBtn.innerHTML = isMicOn ? 'Mic. encendido (Toca para apagar)' : 'Mic. apagado (Toca para encender)';
+    micStatusText.textContent = isMicOn ? "Listo para hablar" : "Micrófono apagado";
 }
 
-// Ensure TTS Queue clears without overlapping
-function playNextTTS() {
-    if (isPlayingTTS || ttsQueue.length === 0 || !isTTSOn || !('speechSynthesis' in window)) return;
-    
-    isPlayingTTS = true;
-    const { text, lang } = ttsQueue.shift();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    
-    utterance.onend = () => {
-        isPlayingTTS = false;
-        playNextTTS();
-    };
-    
-    utterance.onerror = () => {
-        isPlayingTTS = false;
-        playNextTTS();
-    };
+async function enviarAudio() {
+    if (audioChunks.length === 0) return;
+    if (Date.now() - speechStart < 500) { audioChunks = []; return; }
 
-    window.speechSynthesis.speak(utterance);
+    const blob = new Blob(audioChunks, { type: "audio/webm" });
+    audioChunks = [];
+    
+    const formData = new FormData();
+    formData.append("audio", blob, "audio.webm");
+    formData.append("roomCode", currentRoomCode);
+    formData.append("speakerName", currentName);
+    formData.append("speakerLang", currentLang);
+
+    try { fetch('/transcribir', { method: 'POST', body: formData }); } 
+    catch (err) { console.error("Error enviando:", err); }
 }
 
-ttsToggle.addEventListener('click', () => {
-    isTTSOn = !isTTSOn;
-    if (isTTSOn) {
-        ttsToggle.innerHTML = "🔊 Audio ON";
-        ttsToggle.style.background = "var(--primary)";
-        if (ttsQueue.length > 0) playNextTTS();
-    } else {
-        ttsToggle.innerHTML = "🔇 Audio OFF";
-        ttsToggle.style.background = "var(--glass-bg)";
-        window.speechSynthesis.cancel();
-        isPlayingTTS = false;
-    }
-});
-
-// Host controls targeted overrides
-socket.on('host:force_mute', () => { applyHostMute(true, "Conference Mode Active"); });
-socket.on('host:allow_speak', () => { applyHostMute(false, "Meeting Mode: You can speak"); });
-socket.on('host:force_mute_individual', () => { applyHostMute(true, "Host explicitly muted you."); });
-socket.on('host:allow_speak_individual', () => { applyHostMute(false, "Host unmuted you."); });
-
-function applyHostMute(mute, msg) {
-    isHostMuted = mute;
-    if (mute) {
-        isMicOn = false;
-        isSpeaking = false;
-        micBtn.classList.remove('active');
-        micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"></path></svg> Host Muted You';
-        micStatusText.textContent = msg;
-        if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-    } else {
-        micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path></svg> Tap to Unmute';
-        micStatusText.textContent = msg;
-    }
-}
-
-// Receive Transcripts
+// ─── Events & Transcription ────────────────────────────────────────────────
 socket.on('transcript:broadcast', (data) => {
-    const myLang = langSelect.value;
-    let displayMsg = (data.translations && data.translations[myLang]) ? data.translations[myLang] : data.original;
-    if (!displayMsg) return;
-
-    const isMe = data.senderName === nameInput.value.trim();
-    const welcome = transcriptArea.querySelector('.welcome-msg');
-    if (welcome) welcome.remove();
+    if (!data.text) return;
+    const w = transcriptArea.querySelector('.welcome-msg');
+    if (w) w.remove();
 
     const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${isMe ? 'self' : ''}`;
+    msgDiv.className = `message ${data.isMe ? 'self' : ''}`;
     msgDiv.innerHTML = `
         <div class="msg-header"><span>${data.senderName}</span></div>
-        <div class="msg-content">${displayMsg}</div>
+        <div class="msg-content">${data.text}</div>
     `;
     transcriptArea.appendChild(msgDiv);
     transcriptArea.scrollTop = transcriptArea.scrollHeight; 
-    
-    // Add to TTS queue if it's someone else speaking
-    if (!isMe && isTTSOn) {
-        ttsQueue.push({ text: displayMsg, lang: myLang });
-        playNextTTS();
+
+    if (!data.isMe) {
+        audioQueue.push({ text: data.text, lang: currentLang });
+        if (!isPlaying) playNextAudioNative();
     }
 });
 
-socket.on('room:closed', () => {
-    alert("The host has ended the session.");
-    window.location.reload();
-});
+function playNextAudioNative() {
+    if (audioQueue.length === 0) { isPlaying = false; return; }
+    isPlaying = true;
+    const { text, lang } = audioQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Use best voice if available
+    if (bestVoices[lang]) utterance.voice = bestVoices[lang];
+    utterance.lang = lang;
+    
+    utterance.onend = playNextAudioNative;
+    utterance.onerror = playNextAudioNative;
+    window.speechSynthesis.speak(utterance);
+}
+
+socket.on('room:closed', () => { window.location.reload(); });

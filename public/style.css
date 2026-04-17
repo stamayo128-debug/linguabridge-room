@@ -21,6 +21,24 @@ body {
     justify-content: center;
     align-items: center;
     margin: 0;
+    overflow: hidden;
+}
+
+#visualizer-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+#visualizer-container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 .host-body {
@@ -137,6 +155,48 @@ body {
     width: auto;
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
+}
+
+.btn.secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    border: 1px solid var(--glass-border);
+}
+
+.btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: var(--text-muted);
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.divider:not(:empty)::before {
+    margin-right: 1rem;
+}
+
+.divider:not(:empty)::after {
+    margin-left: 1rem;
+}
+
+.divider span {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .error-text {
@@ -338,4 +398,37 @@ body {
     color: var(--text-muted);
     background: none;
     padding: 2rem;
+}
+
+/* Visualizer */
+.visualizer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    margin-bottom: 15px;
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}
+
+.visualizer.active {
+    opacity: 1;
+}
+
+.visualizer .bar {
+    width: 8px;
+    height: 10px;
+    background: #4ade80;
+    border-radius: 4px;
+    transition: height 0.1s;
+}
+
+.visualizer.active .bar:nth-child(1) { animation: bounce 0.4s infinite alternate; }
+.visualizer.active .bar:nth-child(2) { animation: bounce 0.5s infinite alternate; animation-delay: 0.1s; }
+.visualizer.active .bar:nth-child(3) { animation: bounce 0.45s infinite alternate; animation-delay: 0.2s; }
+
+@keyframes bounce {
+    from { height: 10px; }
+    to { height: 30px; }
 }

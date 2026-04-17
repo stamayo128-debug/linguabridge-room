@@ -8,25 +8,50 @@
     <link rel="stylesheet" href="style.css">
     <!-- QRCode JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 </head>
 <body class="host-body">
+    <div id="visualizer-container"></div>
     <div class="glass-container setup-screen" id="setup-screen">
         <h1 class="logo">LinguaBridge Host</h1>
         <p class="subtitle">Create a secure translation room</p>
         
         <div class="input-group">
-            <label for="api-key">Groq API Key (Stored Locally)</label>
+            <label for="api-key">Groq API Key (Optional if set on server)</label>
             <input type="password" id="api-key" placeholder="gsk_..." autocomplete="off">
-            <small class="help-text">This key is sent securely to the server RAM and destroyed when the room closes.</small>
         </div>
 
-        <button id="create-btn" class="btn primary">Start Room</button>
+        <div class="input-group">
+            <label for="host-password">Security Password (Required)</label>
+            <input type="password" id="host-password" placeholder="Clave de acceso" autocomplete="off">
+            <small class="help-text">Define this in your server environment variables.</small>
+        </div>
+        
+        <div class="input-group">
+            <label for="host-name">Tu Nombre</label>
+            <input type="text" id="host-name" value="Presentador" autocomplete="off">
+        </div>
+
+        <button id="create-btn" class="btn primary">Start Secure Room</button>
         <div id="setup-error" class="error-text"></div>
     </div>
 
     <div class="dashboard-screen hidden" id="dashboard-screen">
         <header class="dash-header">
-            <h2>Live Session</h2>
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <h2>Live Session</h2>
+                <select id="host-lang-select" class="btn small" style="background:rgba(15, 23, 42, 0.6); color:white; border:1px solid var(--glass-border); padding:0.3rem; border-radius:8px;">
+                    <option value="es">ES</option>
+                    <option value="en">EN</option>
+                    <option value="fr">FR</option>
+                    <option value="de">DE</option>
+                    <option value="ja">JA</option>
+                    <option value="zh">ZH</option>
+                    <option value="ar">AR</option>
+                    <option value="it">IT</option>
+                    <option value="pt">PT</option>
+                </select>
+            </div>
             <button id="end-btn" class="btn danger small">End Session</button>
         </header>
 
@@ -42,22 +67,58 @@
                     Send Link (WhatsApp/Email)
                 </button>
                 <p class="help-text text-center" style="margin-bottom:1rem;">Or scan to join</p>
-                
+
                 <hr style="width:100%; border-color:var(--glass-border); margin:1rem 0;">
-                
+
                 <h3>Room Mode</h3>
                 <div style="display:flex; gap:1rem; width:100%; margin-top:1rem;">
                     <button id="mode-conf" class="btn primary small active" style="flex:1;">Conference (Mute All)</button>
                     <button id="mode-meet" class="btn small" style="flex:1; background:var(--glass-bg); color:white; border:1px solid var(--glass-border);">Meeting (Free Speak)</button>
                 </div>
+                
+                <hr style="width:100%; border-color:var(--glass-border); margin:1.5rem 0;">
+                
+                <h3>Download Transcript</h3>
+                <div style="display:flex; gap:1rem; width:100%; margin-top:1rem;">
+                    <button id="dl-transcript" class="btn small" style="flex:1; background:var(--accent); color:#0f172a;">TXT (Idioma Actual)</button>
+                </div>
             </div>
 
-            <div class="dash-card">
-                <h3>Participants (<span id="participant-count">0</span>)</h3>
-                <ul class="participant-list" id="participant-list">
-                    <!-- Participants injected here -->
-                    <li class="empty-state">No one has joined yet.</li>
-                </ul>
+            <div style="display: flex; flex-direction: column; gap: 2rem;">
+                <!-- Host Microphone Card -->
+                <div class="dash-card" style="text-align: center;">
+                    <h3>Host Microphone</h3>
+                    <div id="mic-status-text" style="color:var(--text-muted); font-size:0.85rem; height:1.2em; margin-bottom: 0.5rem;">Microphone is OFF</div>
+                    
+                    <div class="visualizer" id="host-visualizer">
+                        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                    </div>
+
+                    <button id="mic-btn" class="btn mic-btn" style="margin: 0 auto;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                        Tap to Talk
+                    </button>
+                    <div style="width:100%; margin-top:1rem; text-align:center;">
+                        <label for="sensitivity-slider" style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:5px;">Sensibilidad al ruido</label>
+                        <input type="range" id="sensitivity-slider" min="0.005" max="0.1" step="0.005" value="0.015" style="width:100%;">
+                    </div>
+                </div>
+
+                <!-- Host Transcript Card -->
+                <div class="dash-card" style="flex: 1; display: flex; flex-direction: column;">
+                    <h3>Live Transcript</h3>
+                    <div class="transcript-area" id="transcript-area" style="max-height: 250px;">
+                        <div class="welcome-msg">Waiting for speech...</div>
+                    </div>
+                </div>
+
+                <!-- Participants Card -->
+                <div class="dash-card">
+                    <h3>Participants (<span id="participant-count">0</span>)</h3>
+                    <ul class="participant-list" id="participant-list">
+                        <li class="empty-state">No one has joined yet.</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
