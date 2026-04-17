@@ -32,25 +32,49 @@ function initBrowserSTT() {
 
     recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true; // STREAMING MODE
     recognition.lang = currentHostLang;
 
+    let interimSpan = null;
+
     recognition.onresult = (event) => {
-        const text = event.results[event.results.length - 1][0].transcript.trim();
-        if (text) {
-            console.log("Browser STT:", text);
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+            else interimTranscript += event.results[i][0].transcript;
+        }
+
+        if (finalTranscript) {
+            if (interimSpan) interimSpan.remove();
+            interimSpan = null;
             socket.emit('translate:text', {
                 roomCode: currentRoomCode,
-                text: text,
+                text: finalTranscript.trim(),
                 speakerName: currentHostName,
                 speakerLang: currentHostLang
             });
+        } else if (interimTranscript) {
+            updateInterimUI(interimTranscript);
         }
     };
 
+    function updateInterimUI(text) {
+        const welcome = transcriptArea.querySelector('.welcome-msg');
+        if (welcome) welcome.remove();
+        
+        if (!interimSpan) {
+            interimSpan = document.createElement('div');
+            interimSpan.className = 'message self interim-text';
+            transcriptArea.appendChild(interimSpan);
+        }
+        interimSpan.textContent = text;
+        transcriptArea.scrollTop = transcriptArea.scrollHeight;
+    }
+
     recognition.onerror = (err) => {
         console.error("Speech Recognition Error:", err.error);
-        if (err.error === 'network') alert("Error de red en reconocimiento de voz.");
     };
     
     recognition.onend = () => { 
@@ -116,6 +140,30 @@ function loadVoices() {
 window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
+// ─── Tabs Navigation ────────────────────────────────────────────────────────
+function initTabs() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.dataset.tab;
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabPanes.forEach(p => p.classList.add('hidden'));
+            btn.classList.add('active');
+            document.getElementById(`tab-${target}`).classList.remove('hidden');
+        });
+    });
+}
+initTabs();
+
+// Audio context warm-up for mobile
+function warmUpTTS() {
+    const utterance = new SpeechSynthesisUtterance(" ");
+    utterance.volume = 0;
+    window.speechSynthesis.speak(utterance);
+}
+
 const storedKey = localStorage.getItem('groq_api_key');
 if (storedKey) apiKeyInput.value = storedKey;
 
@@ -132,6 +180,7 @@ createBtn.addEventListener('click', () => {
     
     setupError.textContent = "Iniciando sala...";
     
+    warmUpTTS();
     socket.emit('host:create_room', { apiKey, password });
     initThreeVisualizer();
 });
@@ -181,16 +230,17 @@ socket.on('room:roster_update', (data) => {
     participants.forEach(p => {
         const li = document.createElement('li');
         const flag = { es:'🇪🇸', en:'🇬🇧', fr:'🇫🇷', de:'🇩🇪', ja:'🇯🇵', zh:'🇨🇳', ar:'🇸🇦', it:'🇮🇹', pt:'🇵🇹' }[p.lang] || '🌐';
+        const isMuted = mutedUsers.has(p.id);
         li.innerHTML = `
             <div><strong>${p.name}</strong> <span class="lang-badge">${flag} ${p.lang.toUpperCase()}</span></div>
-            <button class="btn small action-btn" style="background:var(--glass-bg); color:var(${mutedUsers.has(p.id) ? '--text-main' : '--danger'});">
-                ${mutedUsers.has(p.id) ? 'Desmutear' : 'Mutear'}
+            <button class="btn small action-btn" style="background:${isMuted ? 'var(--accent)' : 'var(--glass-bg)'}; color:${isMuted ? '#0f172a' : 'var(--danger)'};">
+                ${isMuted ? 'Dar Voz' : 'Silenciar'}
             </button>
         `;
         li.querySelector('button').onclick = () => {
-            const isMuted = mutedUsers.has(p.id);
-            socket.emit(isMuted ? 'host:unmute_user' : 'host:mute_user', { targetId: p.id });
-            if (isMuted) mutedUsers.delete(p.id); else mutedUsers.add(p.id);
+            const currentlyMuted = mutedUsers.has(p.id);
+            socket.emit(currentlyMuted ? 'host:unmute_user' : 'host:mute_user', { targetId: p.id });
+            if (currentlyMuted) mutedUsers.delete(p.id); else mutedUsers.add(p.id);
         };
         participantList.appendChild(li);
     });
@@ -209,26 +259,8 @@ let silenceStart = Date.now(), speechStart = Date.now();
 let audioQueue = [], isPlayingTTS = false;
 
 async function initHostAudio() {
-    if (USE_BROWSER_STT) {
-        if (!recognition) initBrowserSTT();
-        isMicOn = true;
-        try { recognition.start(); } catch(e) {}
-        updateHostMicUI();
-        
-        // Remove old listener if exists to avoid doubles
-        const newMicBtn = micBtn.cloneNode(true);
-        micBtn.parentNode.replaceChild(newMicBtn, micBtn);
-        
-        newMicBtn.addEventListener('click', () => {
-            isMicOn = !isMicOn;
-            if (isMicOn) try { recognition.start(); } catch(e) {}
-            else recognition.stop();
-            updateHostMicUI();
-        });
-        return;
-    }
-
     if (typeof audioContext !== 'undefined' && audioContext) return;
+    
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -242,13 +274,24 @@ async function initHostAudio() {
         microphone.connect(scriptProcessor);
         scriptProcessor.connect(audioContext.destination);
 
-        isMicOn = true;
-        updateHostMicUI();
+        const bars = document.querySelectorAll('#host-visualizer .bar');
 
         scriptProcessor.onaudioprocess = (e) => {
-            if (!isMicOn) return;
+            if (!isMicOn) {
+                bars.forEach(b => b.style.height = '10px');
+                return;
+            }
             const data = e.inputBuffer.getChannelData(0);
             const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
+            
+            // Update VAD bars
+            const height = Math.min(10 + (rms * 200), 40);
+            bars.forEach((b, i) => {
+                b.style.height = `${height * (1 - i*0.1)}px`;
+            });
+
+            if (USE_BROWSER_STT) return; // Recognition handles the rest below
+
             const umbral = parseFloat(sensitivitySlider.value);
             const hayVoz = rms > umbral;
 
@@ -273,9 +316,20 @@ async function initHostAudio() {
             }
         };
 
+        if (USE_BROWSER_STT) {
+            initBrowserSTT();
+            isMicOn = true;
+            try { recognition.start(); } catch(e) {}
+            updateHostMicUI();
+        }
+
         micBtn.addEventListener('click', () => {
             if (audioContext.state === 'suspended') audioContext.resume();
             isMicOn = !isMicOn;
+            if (USE_BROWSER_STT) {
+                if (isMicOn) try { recognition.start(); } catch(e) {}
+                else recognition.stop();
+            }
             updateHostMicUI();
         });
     } catch (err) { micStatusText.textContent = "Error Mic: " + err.message; }

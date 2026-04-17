@@ -31,25 +31,50 @@ function initBrowserSTT() {
 
     recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true; // STREAMING MODE
     recognition.lang = currentLang;
 
+    let interimSpan = null;
+
     recognition.onresult = (event) => {
-        const text = event.results[event.results.length - 1][0].transcript.trim();
-        if (text) {
-            console.log("Browser STT:", text);
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+            else interimTranscript += event.results[i][0].transcript;
+        }
+
+        if (finalTranscript) {
+            if (interimSpan) interimSpan.remove();
+            interimSpan = null;
             socket.emit('translate:text', {
                 roomCode: currentRoomCode,
-                text: text,
+                text: finalTranscript.trim(),
                 speakerName: currentName,
                 speakerLang: currentLang
             });
+        } else if (interimTranscript) {
+            updateInterimUI(interimTranscript);
         }
     };
 
+    function updateInterimUI(text) {
+        const welcome = transcriptArea.querySelector('.welcome-msg');
+        if (welcome) welcome.remove();
+        
+        if (!interimSpan) {
+            interimSpan = document.createElement('div');
+            interimSpan.className = 'message self interim-text';
+            transcriptArea.appendChild(interimSpan);
+        }
+        interimSpan.textContent = text;
+        transcriptArea.scrollTop = transcriptArea.scrollHeight;
+    }
+
     recognition.onerror = (err) => console.error("Speech Recognition Error:", err.error);
     recognition.onend = () => { 
-        if (isMicOn && USE_BROWSER_STT) {
+        if (isMicOn && USE_BROWSER_STT && !isHostMuted) {
             try { recognition.start(); } catch(e) {}
         }
     };
@@ -143,6 +168,11 @@ joinBtn.addEventListener('click', () => {
     if (!currentRoomCode || !currentName) { joinError.textContent = "Se requiere código y nombre."; return; }
     joinError.textContent = "Conectando...";
     
+    // Warm up TTS for mobile
+    const utt = new SpeechSynthesisUtterance(" ");
+    utt.volume = 0;
+    window.speechSynthesis.speak(utt);
+
     initAudio();
     initThreeVisualizer();
     socket.emit('participant:join_room', { roomCode: currentRoomCode, name: currentName, lang: currentLang });
@@ -163,15 +193,14 @@ let speechStart = Date.now();
 const SILENCE_THRESHOLD_MS = 300; 
 
 async function initAudio() {
-    if (audioContext) return;
+    if (typeof audioContext !== 'undefined' && audioContext) return;
+    
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
-        
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         dataArray = new Uint8Array(analyser.frequencyBinCount);
-
         microphone = audioContext.createMediaStreamSource(stream);
         scriptProcessor = audioContext.createScriptProcessor(1024, 1, 1);
         
@@ -179,29 +208,12 @@ async function initAudio() {
         microphone.connect(scriptProcessor);
         scriptProcessor.connect(audioContext.destination);
 
-        isMicOn = true;
-        updateMicUI();
-
-        if (USE_BROWSER_STT) {
-            initBrowserSTT();
-            recognition.start();
-
-            // Refresh listener for browser mode
-            const newMicBtn = micBtn.cloneNode(true);
-            micBtn.parentNode.replaceChild(newMicBtn, micBtn);
-            newMicBtn.addEventListener('click', () => {
-                if (isHostMuted) return;
-                isMicOn = !isMicOn;
-                if (isMicOn) try { recognition.start(); } catch(e) {}
-                else recognition.stop();
-                updateMicUI();
-            });
-            return;
-        }
-
         scriptProcessor.onaudioprocess = (e) => {
             if (!isMicOn || isHostMuted) return;
             const data = e.inputBuffer.getChannelData(0);
+            
+            if (USE_BROWSER_STT) return; // Visualizer already handled by analyser
+
             const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
             const umbral = parseFloat(sensitivitySlider.value);
             const hayVoz = rms > umbral;
@@ -227,10 +239,21 @@ async function initAudio() {
             }
         };
 
+        if (USE_BROWSER_STT) {
+            initBrowserSTT();
+            isMicOn = true;
+            try { recognition.start(); } catch(e) {}
+            updateMicUI();
+        }
+
         micBtn.addEventListener('click', () => {
             if (isHostMuted) return;
             if (audioContext.state === 'suspended') audioContext.resume();
             isMicOn = !isMicOn;
+            if (USE_BROWSER_STT) {
+                if (isMicOn) try { recognition.start(); } catch(e) {}
+                else recognition.stop();
+            }
             updateMicUI();
         });
     } catch (err) { joinError.textContent = "Error al iniciar micrófono."; }
@@ -294,5 +317,17 @@ function playNextAudioNative() {
     utterance.onerror = playNextAudioNative;
     window.speechSynthesis.speak(utterance);
 }
+
+socket.on('host:force_mute', () => { 
+    isHostMuted = true; 
+    isMicOn = false; 
+    updateMicUI(); 
+    if (recognition) try { recognition.stop(); } catch(e) {}
+});
+
+socket.on('host:allow_speak', () => { 
+    isHostMuted = false; 
+    updateMicUI();
+});
 
 socket.on('room:closed', () => { window.location.reload(); });

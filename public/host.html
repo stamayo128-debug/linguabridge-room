@@ -17,11 +17,6 @@
         <p class="subtitle">Create a secure translation room</p>
         
         <div class="input-group">
-            <label for="api-key">Groq API Key (Optional if set on server)</label>
-            <input type="password" id="api-key" placeholder="gsk_..." autocomplete="off">
-        </div>
-
-        <div class="input-group">
             <label for="host-password">Security Password (Required)</label>
             <input type="password" id="host-password" placeholder="Clave de acceso" autocomplete="off">
             <small class="help-text">Define this in your server environment variables.</small>
@@ -55,69 +50,79 @@
             <button id="end-btn" class="btn danger small">End Session</button>
         </header>
 
-        <div class="dash-grid">
-            <div class="dash-card qr-card">
-                <h3>Invite Participants</h3>
-                <div id="qrcode"></div>
-                <div class="room-code-display">
-                    Code: <strong id="host-room-code">----</strong>
-                </div>
-                <button id="share-btn" class="btn small" style="margin-bottom: 1rem; background: var(--glass-bg); border: 1px solid var(--glass-border); color: white;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:0.5rem;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-                    Send Link (WhatsApp/Email)
-                </button>
-                <p class="help-text text-center" style="margin-bottom:1rem;">Or scan to join</p>
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="session">Session</button>
+            <button class="tab-btn" data-tab="control">Control</button>
+        </nav>
 
-                <hr style="width:100%; border-color:var(--glass-border); margin:1rem 0;">
-
-                <h3>Room Mode</h3>
-                <div style="display:flex; gap:1rem; width:100%; margin-top:1rem;">
-                    <button id="mode-conf" class="btn primary small active" style="flex:1;">Conference (Mute All)</button>
-                    <button id="mode-meet" class="btn small" style="flex:1; background:var(--glass-bg); color:white; border:1px solid var(--glass-border);">Meeting (Free Speak)</button>
-                </div>
-                
-                <hr style="width:100%; border-color:var(--glass-border); margin:1.5rem 0;">
-                
-                <h3>Download Transcript</h3>
-                <div style="display:flex; gap:1rem; width:100%; margin-top:1rem;">
-                    <button id="dl-transcript" class="btn small" style="flex:1; background:var(--accent); color:#0f172a;">TXT (Idioma Actual)</button>
-                </div>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 2rem;">
+        <div id="tab-session" class="tab-pane">
+            <div class="dash-grid" style="grid-template-columns: 1fr;">
                 <!-- Host Microphone Card -->
-                <div class="dash-card" style="text-align: center;">
-                    <h3>Host Microphone</h3>
+                <div class="dash-card" style="text-align: center; background: rgba(15, 23, 42, 0.4);">
                     <div id="mic-status-text" style="color:var(--text-muted); font-size:0.85rem; height:1.2em; margin-bottom: 0.5rem;">Microphone is OFF</div>
                     
                     <div class="visualizer" id="host-visualizer">
-                        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+                        <span class="bar" style="height: 10px;"></span>
+                        <span class="bar" style="height: 10px;"></span>
+                        <span class="bar" style="height: 10px;"></span>
                     </div>
 
-                    <button id="mic-btn" class="btn mic-btn" style="margin: 0 auto;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
-                        Tap to Talk
+                    <button id="mic-btn" class="btn mic-btn" style="margin: 0 auto; width: 80px; height: 80px; border-radius: 50%; padding: 0;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
                     </button>
-                    <div style="width:100%; margin-top:1rem; text-align:center;">
-                        <label for="sensitivity-slider" style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:5px;">Sensibilidad al ruido</label>
+                    <div style="width:100%; max-width: 300px; margin: 1.5rem auto 0; text-align:center;">
                         <input type="range" id="sensitivity-slider" min="0.005" max="0.1" step="0.005" value="0.015" style="width:100%;">
+                        <label for="sensitivity-slider" style="font-size:0.75rem; color:#94a3b8; display:block; margin-top:5px;">Sensibilidad del micro</label>
                     </div>
                 </div>
 
                 <!-- Host Transcript Card -->
-                <div class="dash-card" style="flex: 1; display: flex; flex-direction: column;">
-                    <h3>Live Transcript</h3>
-                    <div class="transcript-area" id="transcript-area" style="max-height: 250px;">
-                        <div class="welcome-msg">Waiting for speech...</div>
+                <div class="dash-card" style="flex: 1; display: flex; flex-direction: column; min-height: 300px;">
+                    <div class="transcript-area" id="transcript-area" style="max-height: 400px; flex: 1;">
+                        <div class="welcome-msg">Habla para empezar la transcripción...</div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Participants Card -->
-                <div class="dash-card">
-                    <h3>Participants (<span id="participant-count">0</span>)</h3>
-                    <ul class="participant-list" id="participant-list">
-                        <li class="empty-state">No one has joined yet.</li>
-                    </ul>
+        <div id="tab-control" class="tab-pane hidden">
+            <div class="dash-grid">
+                <div class="dash-card qr-card">
+                    <h3>Invite Participants</h3>
+                    <div id="qrcode"></div>
+                    <div class="room-code-display">
+                        Code: <strong id="host-room-code">----</strong>
+                    </div>
+                    <button id="share-btn" class="btn small" style="margin-bottom: 1rem; background: var(--glass-bg); border: 1px solid var(--glass-border); color: white;">
+                        Compartir Enlace
+                    </button>
+                    
+                    <hr style="width:100%; border-color:var(--glass-border); margin:1.5rem 0;">
+
+                    <h3>Room Mode</h3>
+                    <div style="display:flex; gap:1rem; width:100%; margin-top:1rem;">
+                        <button id="mode-conf" class="btn primary small active" style="flex:1;">Conference</button>
+                        <button id="mode-meet" class="btn small" style="flex:1; background:var(--glass-bg); color:white; border:1px solid var(--glass-border);">Meeting</button>
+                    </div>
+                    <p class="help-text" style="margin-top: 0.5rem;">En modo Conferencia, todos están silenciados por defecto.</p>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <!-- Participants Card -->
+                    <div class="dash-card">
+                        <h3>Participants (<span id="participant-count">0</span>)</h3>
+                        <ul class="participant-list" id="participant-list">
+                            <li class="empty-state">No one joined yet.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Settings Card -->
+                    <div class="dash-card">
+                        <h3>Session Options</h3>
+                        <button id="dl-transcript" class="btn small" style="width: 100%; background: var(--glass-bg); color: white; border: 1px solid var(--glass-border);">
+                            Download Full Transcript
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

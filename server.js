@@ -86,11 +86,17 @@ io.on('connection', (socket) => {
     console.log(`Room created: ${roomCode}`);
   });
 
-  socket.on('host:set_mode', ({ roomCode, mode }) => {
-    const room = rooms[roomCode];
-    if (!room || room.hostId !== socket.id) return;
-    room.mode = mode;
     socket.to(roomCode).emit(mode === 'conference' ? 'host:force_mute' : 'host:allow_speak');
+  });
+
+  socket.on('host:mute_user', ({ targetId }) => {
+    // Individual mute
+    io.to(targetId).emit('host:force_mute');
+  });
+
+  socket.on('host:unmute_user', ({ targetId }) => {
+    // Individual unmute
+    io.to(targetId).emit('host:allow_speak');
   });
 
   socket.on('participant:join_room', ({ roomCode, name, lang }) => {
