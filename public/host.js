@@ -2,9 +2,9 @@ const socket = io();
 
 const setupScreen = document.getElementById('setup-screen');
 const dashScreen = document.getElementById('dashboard-screen');
-const apiKeyInput = document.getElementById('api-key');
 const createBtn = document.getElementById('create-btn');
 const setupError = document.getElementById('setup-error');
+const transcriptArea = document.getElementById('transcript-area');
 const displayRoomCode = document.getElementById('host-room-code');
 const participantList = document.getElementById('participant-list');
 const participantCount = document.getElementById('participant-count');
@@ -164,25 +164,32 @@ function warmUpTTS() {
     window.speechSynthesis.speak(utterance);
 }
 
-const storedKey = localStorage.getItem('groq_api_key');
-if (storedKey) apiKeyInput.value = storedKey;
-
 createBtn.addEventListener('click', () => {
-    const apiKey = apiKeyInput.value.trim();
-    const password = document.getElementById('host-password').value.trim();
+    const passwordInput = document.getElementById('host-password');
+    const password = passwordInput.value.trim();
     currentHostName = document.getElementById('host-name').value.trim() || 'Presentador';
     currentHostLang = document.getElementById('host-lang-select').value;
     
-    if (!password) return setupError.textContent = "Contraseña de seguridad requerida.";
+    if (!password) {
+        setupError.textContent = "Contraseña de seguridad requerida.";
+        passwordInput.style.borderColor = "var(--danger)";
+        return;
+    }
     
-    // Si el usuario pone una API Key en el input, la guardamos, si no usamos la del servidor
-    if (apiKey) localStorage.setItem('groq_api_key', apiKey);
-    
-    setupError.textContent = "Iniciando sala...";
+    createBtn.disabled = true;
+    createBtn.textContent = "Iniciando sala...";
+    setupError.textContent = "";
     
     warmUpTTS();
-    socket.emit('host:create_room', { apiKey, password });
-    initThreeVisualizer();
+    socket.emit('host:create_room', { password }); // API Key handled by server
+    
+    // Si no recibimos respuesta en 5s, restauramos el botón
+    setTimeout(() => {
+        if (setupScreen.classList.contains('hidden')) return;
+        createBtn.disabled = false;
+        createBtn.textContent = "Start Secure Room";
+        setupError.textContent = "Tiempo de espera agotado. ¿Está el servidor online?";
+    }, 5000);
 });
 
 socket.on('host:room_created', (data) => {
@@ -192,6 +199,8 @@ socket.on('host:room_created', (data) => {
     setupScreen.classList.add('hidden');
     dashScreen.classList.remove('hidden');
     displayRoomCode.textContent = currentRoomCode;
+
+    initThreeVisualizer(); // Iniciar visualización 3D al entrar al dashboard
 
     const joinUrl = `${publicNgrokUrl}/?room=${currentRoomCode}`;
     const qrContainer = document.getElementById('qrcode');
@@ -383,6 +392,8 @@ function playNextHostAudioNative() {
     window.speechSynthesis.speak(utterance);
 }
 socket.on('error', (msg) => {
+    createBtn.disabled = false;
+    createBtn.textContent = "Start Secure Room";
     if (setupError) setupError.textContent = msg;
     else alert(msg);
 });

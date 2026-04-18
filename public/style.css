@@ -1,8 +1,10 @@
     --bg-color: #020617;
-    --glass-bg: rgba(15, 23, 42, 0.7);
-    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-bg: rgba(15, 23, 42, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.12);
     --primary: #3b82f6;
-    --primary-glow: rgba(59, 130, 246, 0.4);
+    --primary-hover: #2563eb;
+    --primary-active: #1d4ed8;
+    --primary-glow: rgba(59, 130, 246, 0.5);
     --danger: #ef4444;
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
@@ -122,28 +124,41 @@ body {
 /* Buttons */
 .btn {
     width: 100%;
-    padding: 1rem;
+    height: 54px;
+    padding: 0 1.5rem;
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     font-family: inherit;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 0.5rem;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .btn.primary {
-    background: var(--primary);
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
+    box-shadow: 0 8px 25px -5px var(--primary-glow);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .btn.primary:hover {
     background: var(--primary-hover);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 30px -5px var(--primary-glow);
+}
+
+.btn.primary:active {
+    background: var(--primary-active);
+    transform: scale(0.97);
+    box-shadow: 0 2px 8px var(--primary-glow);
 }
 
 .btn.danger {
