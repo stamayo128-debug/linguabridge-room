@@ -394,9 +394,15 @@
         // TTS voices
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
+            console.log("Voces disponibles:", voices.map(v => `${v.name} (${v.lang})`));
+            
             ['es','en','fr','de','ja','zh','pt'].forEach(lang => {
-                bestVoices[lang] = voices.find(v => v.lang.startsWith(lang)) || null;
+                // Primero buscar una voz nativa buena (Google, Microsoft, Siri)
+                bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Google') || v.name.includes('Neural') || v.name.includes('Siri'))) 
+                                || voices.find(v => v.lang.startsWith(lang)) 
+                                || null;
             });
+            console.log("Voces seleccionadas:", bestVoices);
         }
         window.speechSynthesis.onvoiceschanged = loadVoices;
         loadVoices();

@@ -485,7 +485,9 @@
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
             ['es','en','fr','de','ja','zh','pt'].forEach(lang => {
-                bestVoices[lang] = voices.find(v => v.lang.startsWith(lang)) || null;
+                bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Google') || v.name.includes('Neural') || v.name.includes('Siri'))) 
+                                || voices.find(v => v.lang.startsWith(lang)) 
+                                || null;
             });
         }
         window.speechSynthesis.onvoiceschanged = loadVoices;
