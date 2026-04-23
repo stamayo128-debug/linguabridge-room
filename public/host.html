@@ -2,144 +2,753 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>LinguaBridge - Host</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        :root {
+            --bg: #0f0f14;
+            --surface: #1a1a24;
+            --surface-light: #252532;
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --accent: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+            --border: rgba(255,255,255,0.08);
+        }
+        
+        html, body {
+            height: 100%;
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+        }
+        
+        .app { height: 100%; display: flex; flex-direction: column; }
+        
+        .screen { height: 100%; display: flex; flex-direction: column; }
+        .screen.hidden { display: none; }
+        
+        /* Setup */
+        .setup-screen {
+            justify-content: center;
+            padding: 32px 24px;
+            background: linear-gradient(180deg, #14141c 0%, var(--bg) 100%);
+        }
+        
+        .setup-screen h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+        
+        .setup-screen .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 32px;
+            font-size: 0.9rem;
+        }
+        
+        .form-group { margin-bottom: 16px; }
+        
+        .form-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--primary);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        
+        .btn-secondary {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+        
+        .error { color: var(--danger); font-size: 0.85rem; text-align: center; margin-top: 12px; }
+        
+        /* Dashboard */
+        .dashboard-header {
+            padding: 16px 20px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .room-info { display: flex; align-items: center; gap: 16px; }
+        .room-code { font-size: 1.5rem; font-weight: 700; color: var(--primary); letter-spacing: 4px; }
+        
+        .header-actions { display: flex; gap: 8px; }
+        
+        .header-btn {
+            padding: 8px 12px;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        
+        .header-btn:hover { background: var(--border); }
+        
+        .header-btn.danger { color: var(--danger); }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 14px;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        .tab-content { flex: 1; overflow-y: auto; display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Transcript */
+        .transcript {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .message {
+            padding: 14px 16px;
+            background: var(--surface);
+            border-radius: 14px;
+            border-left: 3px solid var(--primary);
+            animation: slideIn 0.3s ease;
+        }
+        
+        .message.system {
+            border-left-color: var(--accent);
+            background: rgba(34, 197, 94, 0.08);
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .msg-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .sender {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+        
+        .time { font-size: 0.7rem; color: var(--text-dim); }
+        .text { font-size: 1rem; line-height: 1.5; }
+        
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-dim);
+        }
+        
+        /* Participants */
+        .participants-list { padding: 16px; }
+        
+        .participant-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: var(--surface);
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .participant-info { display: flex; align-items: center; gap: 12px; }
+        
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .participant-name { font-weight: 600; }
+        .participant-lang { font-size: 0.75rem; color: var(--text-dim); }
+        
+        .mute-btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        
+        .mute-btn.muted {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+        
+        .mute-btn.speaking {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--accent);
+        }
+        
+        /* Controls */
+        .host-controls {
+            padding: 20px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .mic-btn {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: var(--surface-light);
+            border: 2px solid var(--border);
+            margin: 0 auto;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .mic-btn.active {
+            background: linear-gradient(135deg, var(--accent), #16a34a);
+            border-color: var(--accent);
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.4);
+        }
+        
+        .mic-btn svg { width: 28px; height: 28px; color: var(--text-dim); }
+        .mic-btn.active svg { color: white; }
+        
+        .mic-status {
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        
+        .mic-status.active { color: var(--accent); }
+        
+        .lang-row {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .lang-btn {
+            padding: 10px 16px;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        .lang-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        
+        .toggle-row {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+        }
+        
+        .toggle-btn {
+            padding: 10px 20px;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        
+        .toggle-btn.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-dim);
+        }
+        .status-dot.connected { background: var(--accent); }
+        .status-dot.connecting { background: var(--warning); }
+        
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 16px;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+    </style>
     <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-
-<!-- ═══ HOST SETUP SCREEN ═══ -->
-<div class="join-screen" id="setup-screen">
-    <form class="join-form" id="setup-form">
-        <div class="logo">LinguaBridge</div>
-        <p class="tagline">Panel de Control del Anfitrión</p>
-        
-        <div class="input-group">
-            <label for="host-password">Contraseña de Seguridad</label>
-            <input type="password" id="host-password" placeholder="Contraseña del host" autocomplete="off">
-        </div>
-        
-        <div class="input-group">
-            <label for="host-name">Tu Nombre</label>
-            <input type="text" id="host-name" placeholder="Nombre del presentador" value="Anfitrión" autocomplete="off">
-        </div>
-        
-        <div class="input-group">
-            <label for="host-lang">Tu Idioma (hablarás en)</label>
-            <select id="host-lang">
-                <option value="es" selected>🇪🇸 Español</option>
-                <option value="en">🇬🇧 English</option>
-                <option value="fr">🇫🇷 Français</option>
-                <option value="de">🇩🇪 Deutsch</option>
-                <option value="ja">🇯🇵 日本語</option>
-                <option value="zh">🇨🇳 中文</option>
-                <option value="ar">🇸🇦 العربية</option>
-                <option value="it">🇮🇹 Italiano</option>
-                <option value="pt">🇵🇹 Português</option>
-            </select>
-        </div>
-        
-        <button type="submit" class="btn btn-primary">Crear Sala</button>
-        <div id="setup-error" class="error-text"></div>
-    </form>
-</div>
-
-<!-- ═══ HOST DASHBOARD (Swipe Container) ═══ -->
-<div class="swipe-container hidden" id="dashboard-container">
-    <div class="swipe-wrapper" id="swipe-wrapper">
-        
-        <!-- ─── PANEL LEFT: Transcript ─── -->
-        <div class="panel panel-left" id="panel-transcript">
-            <div class="panel-header">
-                <h2><span class="pulse-dot"></span> Transcripción</h2>
-                <span class="header-badge" id="room-code-badge">Sala 0000</span>
-            </div>
-            
-            <div class="transcript-area" id="transcript-area">
-                <div class="welcome-msg">Habla para ver las traducciones aquí...</div>
-            </div>
-        </div>
-        
-        <!-- ─── PANEL CENTER: 3D Sphere ─── -->
-        <div class="panel panel-center" id="panel-sphere">
-            <div class="panel-header">
-                <h2><span id="host-name-display">Anfitrión</span> <span style="color: var(--text-muted); font-size: 0.85rem;">• Cambia tu idioma abajo</span></h2>
-            </div>
-            
-            <div class="sphere-container">
-                <div class="sphere" id="sphere">
-                    <div class="sphere-inner"></div>
+    <div class="app">
+        <!-- Setup -->
+        <div class="screen" id="setup-screen">
+            <div class="setup-screen">
+                <h1>🎤 Crear Sala</h1>
+                <p class="subtitle">LinguaBridge - Host</p>
+                
+                <div class="form-group">
+                    <label>Tu nombre</label>
+                    <input type="text" id="host-name" placeholder="Presentador" value="Presentador">
                 </div>
-                <div class="sphere-particles" id="sphere-particles"></div>
+                
+                <div class="form-group">
+                    <label>Tu idioma</label>
+                    <select id="host-lang">
+                        <option value="es" selected>Español</option>
+                        <option value="en">English</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="host-password" placeholder="admin123">
+                </div>
+                
+                <button class="btn" id="create-btn">Crear Sala</button>
+                <div class="error" id="error"></div>
+                
+                <a href="index.html" class="back-link">← Unirse a sala</a>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div class="screen hidden" id="dashboard-screen">
+            <div class="dashboard-header">
+                <div class="room-info">
+                    <div>
+                        <div class="room-code" id="display-room">----</div>
+                        <div class="status-bar">
+                            <div class="status-dot" id="status-dot"></div>
+                            <span id="status-text">Conectando</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="header-btn" id="share-btn">📋 Copiar</button>
+                    <button class="header-btn danger" id="end-btn">✕ Salir</button>
+                </div>
             </div>
             
-            <div class="mic-container" style="position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%);">
-                <div class="visualizer" id="visualizer">
-                    <div class="viz-bar" style="height: 10px;"></div>
-                    <div class="viz-bar" style="height: 10px;"></div>
-                    <div class="viz-bar" style="height: 10px;"></div>
-                    <div class="viz-bar" style="height: 10px;"></div>
-                    <div class="viz-bar" style="height: 10px;"></div>
+            <div class="tabs">
+                <button class="tab active" data-tab="transcript">Transcript</button>
+                <button class="tab" data-tab="participants">Participantes</button>
+            </div>
+            
+            <div class="tab-content active" id="tab-transcript">
+                <div class="transcript" id="transcript">
+                    <div class="empty-state">Habla para ver la traducción aquí...</div>
                 </div>
+            </div>
+            
+            <div class="tab-content" id="tab-participants">
+                <div class="participants-list" id="participants-list">
+                    <div class="empty-state">Nadie conectado aún</div>
+                </div>
+            </div>
+            
+            <div class="host-controls">
+                <div class="toggle-row">
+                    <button class="toggle-btn active" id="tts-on">🔊 Voz ON</button>
+                    <button class="toggle-btn" id="tts-off">🔇 Voz OFF</button>
+                </div>
+                
                 <button class="mic-btn" id="mic-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="22"></line>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="22"/>
                     </svg>
                 </button>
-                <span class="mic-status" id="mic-status">Micrófono apagado</span>
-            </div>
-            
-            <!-- Language selector for host -->
-            <div class="lang-selector" style="position: absolute; bottom: 20px; left: 0; right: 0;">
-                <select id="host-lang" style="width: 90%; max-width: 300px; margin: 0 auto; display: block;">
-                    <option value="es" selected>🇪🇸 Español</option>
-                    <option value="en">🇬🇧 English</option>
-                    <option value="fr">🇫🇷 Français</option>
-                    <option value="de">🇩🇪 Deutsch</option>
-                    <option value="ja">🇯🇵 日本語</option>
-                    <option value="zh">🇨🇳 中文</option>
-                    <option value="ar">🇸🇦 العربية</option>
-                    <option value="it">🇮🇹 Italiano</option>
-                    <option value="pt">🇵🇹 Português</option>
-                </select>
+                <div class="mic-status" id="mic-status">Micrófono apagado</div>
+                
+                <div class="lang-row" id="lang-row">
+                    <button class="lang-btn active" data-lang="es">ES</button>
+                    <button class="lang-btn" data-lang="en">EN</button>
+                    <button class="lang-btn" data-lang="fr">FR</button>
+                    <button class="lang-btn" data-lang="de">DE</button>
+                </div>
             </div>
         </div>
-        
-        <!-- ─── PANEL RIGHT: Participants ─── -->
-        <div class="panel panel-right" id="panel-participants">
-            <div class="panel-header">
-                <h2>👥 Participantes</h2>
-                <span class="header-badge" id="participant-count-badge">0 conectados</span>
-            </div>
-            
-            <div style="flex: 1; overflow-y: auto; padding: 20px;" id="participants-list">
-                <div class="welcome-msg">Nadie conectado aún</div>
-            </div>
-            
-            <div style="padding: 20px; border-top: 1px solid var(--border);">
-                <h4 style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase;">Compartir Sala</h4>
-                <div class="qr-container" id="qrcode"></div>
-                <div class="room-code" id="display-room-code">0000</div>
-                <button class="btn btn-secondary btn-small" id="share-btn" style="width: 100%; margin-bottom: 12px;">Copiar Enlace</button>
-                <button class="btn btn-primary btn-small" id="end-btn" style="width: 100%; background: var(--danger);">Terminar Sesión</button>
-            </div>
-        </div>
-        
     </div>
     
-    <!-- Navigation Pills -->
-    <div class="nav-pills">
-        <div class="nav-pill" data-panel="transcript"></div>
-        <div class="nav-pill active" data-panel="sphere"></div>
-        <div class="nav-pill" data-panel="participants"></div>
-    </div>
-</div>
-
-<script src="host.js"></script>
+    <script>
+        const socket = io();
+        
+        let currentRoom = '';
+        let currentName = '';
+        let currentLang = 'es';
+        let isMicOn = false;
+        let ttsEnabled = true;
+        let recognition = null;
+        let bestVoices = {};
+        let mutedUsers = new Set();
+        
+        // TTS
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            ['es','en','fr','de','ja','zh','pt'].forEach(lang => {
+                bestVoices[lang] = voices.find(v => v.lang.startsWith(lang)) || null;
+            });
+        }
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+        
+        function speak(text, lang) {
+            if (!ttsEnabled) return;
+            window.speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(text);
+            if (bestVoices[lang]) utt.voice = bestVoices[lang];
+            utt.lang = lang;
+            utt.rate = 1;
+            window.speechSynthesis.speak(utt);
+        }
+        
+        // STT
+        function initSTT() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+            
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = currentLang;
+            
+            let lastFinal = '';
+            
+            recognition.onresult = (e) => {
+                let final = '', interim = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    const r = e.results[i];
+                    if (r.isFinal) final += r[0].transcript;
+                    else interim += r[0].transcript;
+                }
+                
+                if (final.trim() && final !== lastFinal) {
+                    lastFinal = final;
+                    const text = final.trim();
+                    console.log('Host STT:', text);
+                    socket.emit('translate:text', {
+                        roomCode: currentRoom,
+                        text: text,
+                        speakerName: currentName,
+                        speakerLang: currentLang
+                    });
+                }
+            };
+            
+            recognition.onend = () => {
+                if (isMicOn && recognition) recognition.start();
+            };
+        }
+        
+        function addMessage(sender, text, isSystem = false) {
+            const el = document.getElementById('transcript');
+            const empty = el.querySelector('.empty-state');
+            if (empty) empty.remove();
+            
+            const msg = document.createElement('div');
+            msg.className = `message ${isSystem ? 'system' : ''}`;
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+            msg.innerHTML = `
+                <div class="msg-header">
+                    <span class="sender">${sender}</span>
+                    <span class="time">${time}</span>
+                </div>
+                <div class="text">${text}</div>
+            `;
+            el.appendChild(msg);
+            el.scrollTop = el.scrollHeight;
+        }
+        
+        // Setup
+        document.getElementById('create-btn').addEventListener('click', async () => {
+            const password = document.getElementById('host-password').value.trim();
+            currentName = document.getElementById('host-name').value.trim() || 'Presentador';
+            currentLang = document.getElementById('host-lang').value;
+            
+            if (!password) {
+                document.getElementById('error').textContent = 'Contraseña requerida';
+                return;
+            }
+            
+            document.getElementById('error').textContent = 'Creando sala...';
+            
+            // Warm up TTS
+            const utt = new SpeechSynthesisUtterance(' ');
+            utt.volume = 0;
+            window.speechSynthesis.speak(utt);
+            
+            initSTT();
+            
+            socket.emit('host:create_room', { password });
+        });
+        
+        // Socket events
+        socket.on('connect', () => {
+            document.getElementById('status-dot').className = 'status-dot connected';
+            document.getElementById('status-text').textContent = 'Conectado';
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('status-dot').className = 'status-dot';
+            document.getElementById('status-text').textContent = 'Desconectado';
+        });
+        
+        socket.on('host:room_created', (data) => {
+            currentRoom = data.roomCode;
+            
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('dashboard-screen').classList.remove('hidden');
+            document.getElementById('display-room').textContent = data.roomCode;
+            
+            addMessage('Sistema', 'Sala creada. ¡Bienvenido!', true);
+            
+            // Copy link
+            const joinUrl = `${window.location.origin}/?room=${data.roomCode}`;
+            document.getElementById('share-btn').addEventListener('click', () => {
+                navigator.clipboard.writeText(joinUrl);
+                document.getElementById('share-btn').textContent = '✓ Copiado';
+                setTimeout(() => document.getElementById('share-btn').textContent = '📋 Copiar', 2000);
+            });
+            
+            // End
+            document.getElementById('end-btn').addEventListener('click', () => {
+                if (confirm('¿Terminar sesión?')) {
+                    socket.emit('host:end_room', { roomCode: currentRoom });
+                    window.location.reload();
+                }
+            });
+            
+            // Lang
+            document.getElementById('host-lang').addEventListener('change', (e) => {
+                currentLang = e.target.value;
+                socket.emit('host:change_lang', { roomCode: currentRoom, lang: currentLang });
+                if (recognition) recognition.lang = currentLang;
+            });
+            
+            // Start mic
+            isMicOn = true;
+            if (recognition) recognition.start();
+            updateMicUI();
+        });
+        
+        socket.on('error', (msg) => {
+            document.getElementById('error').textContent = msg;
+        });
+        
+        socket.on('transcript:broadcast', (data) => {
+            if (!data.text) return;
+            addMessage(data.senderName, data.text);
+            if (!data.isMe) {
+                setTimeout(() => speak(data.text, currentLang), 300);
+            }
+        });
+        
+        socket.on('room:roster_update', (data) => {
+            const list = document.getElementById('participants-list');
+            const participants = data.participants;
+            
+            if (participants.length === 0) {
+                list.innerHTML = '<div class="empty-state">Nadie conectado aún</div>';
+                return;
+            }
+            
+            const flags = {es:'🇪🇸',en:'🇬🇧',fr:'🇫🇷',de:'🇩🇪',ja:'🇯🇵',zh:'🇨🇳',pt:'🇵🇹'};
+            
+            list.innerHTML = participants.map(p => {
+                const isMuted = mutedUsers.has(p.id);
+                return `
+                    <div class="participant-card">
+                        <div class="participant-info">
+                            <div class="avatar">${p.name.charAt(0).toUpperCase()}</div>
+                            <div>
+                                <div class="participant-name">${p.name}</div>
+                                <div class="participant-lang">${flags[p.lang]||'🌐'} ${p.lang.toUpperCase()}</div>
+                            </div>
+                        </div>
+                        <button class="mute-btn ${isMuted ? 'muted' : 'speaking'}" data-id="${p.id}">
+                            ${isMuted ? '🔇 Silenciar' : '🎤 Dar voz'}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            list.querySelectorAll('.mute-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.id;
+                    if (mutedUsers.has(id)) {
+                        mutedUsers.delete(id);
+                        socket.emit('host:unmute_user', { roomCode: currentRoom, targetId: id });
+                    } else {
+                        mutedUsers.add(id);
+                        socket.emit('host:mute_user', { roomCode: currentRoom, targetId: id });
+                    }
+                    // Refresh list
+                    socket.emit('room:roster_request', { roomCode: currentRoom });
+                });
+            });
+        });
+        
+        socket.on('room:closed', () => {
+            addMessage('Sistema', 'La sala ha sido cerrada', true);
+            setTimeout(() => window.location.reload(), 2000);
+        });
+        
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+        
+        // Mic
+        const micBtn = document.getElementById('mic-btn');
+        const micStatus = document.getElementById('mic-status');
+        
+        micBtn.addEventListener('click', () => {
+            isMicOn = !isMicOn;
+            if (isMicOn) {
+                if (recognition) recognition.start();
+            } else {
+                if (recognition) recognition.stop();
+            }
+            updateMicUI();
+        });
+        
+        function updateMicUI() {
+            micBtn.classList.toggle('active', isMicOn);
+            micStatus.textContent = isMicOn ? 'Escuchando...' : 'Micrófono apagado';
+            micStatus.classList.toggle('active', isMicOn);
+        }
+        
+        // Lang
+        document.getElementById('lang-row').addEventListener('click', (e) => {
+            const btn = e.target.closest('.lang-btn');
+            if (!btn) return;
+            
+            currentLang = btn.dataset.lang;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            socket.emit('host:change_lang', { roomCode: currentRoom, lang: currentLang });
+            if (recognition) recognition.lang = currentLang;
+        });
+        
+        // TTS toggle
+        document.getElementById('tts-on').addEventListener('click', () => {
+            ttsEnabled = true;
+            document.getElementById('tts-on').classList.add('active');
+            document.getElementById('tts-off').classList.remove('active');
+        });
+        
+        document.getElementById('tts-off').addEventListener('click', () => {
+            ttsEnabled = false;
+            document.getElementById('tts-on').classList.remove('active');
+            document.getElementById('tts-off').classList.add('active');
+            window.speechSynthesis.cancel();
+        });
+    </script>
 </body>
 </html>
