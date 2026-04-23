@@ -8,6 +8,7 @@ let isMicOn = false;
 let isHostMuted = false;
 let bestVoices = {};
 let transcriptMessages = [];
+let lastStreamingTime = 0;
 
 // ─── DOM Elements ───
 const joinScreen = document.getElementById('join-screen');
@@ -170,6 +171,17 @@ function initBrowserSTT() {
         } else if (interimTranscript.trim()) {
             console.log('[STT] interimTranscript', interimTranscript);
             updateInterimUI(interimTranscript.trim());
+            const now = Date.now();
+            if (now - lastStreamingTime > 800) {
+                lastStreamingTime = now;
+                socket.emit('translate:text', {
+                    roomCode: currentRoomCode,
+                    text: interimTranscript,
+                    speakerName: currentName,
+                    speakerLang: currentLang,
+                    streaming: true
+                });
+            }
         }
     };
 

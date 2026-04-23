@@ -6,7 +6,6 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const multer = require('multer');
-const Groq = require('groq-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
@@ -20,7 +19,6 @@ try {
 // ─── Constants & Configuration ──────────────────────────────────────────────
 const NGROK_AUTHTOKEN = process.env.NGROK_AUTHTOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const HOST_PASSWORD = process.env.HOST_PASSWORD || 'admin123'; // Clave para crear salas
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -37,8 +35,7 @@ app.use(express.json());
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 const translationModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : null;
 
-// Groq for Whisper (Transcription)
-const globalGroq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
+// Groq for Whisper (Transcription) - removed: transcription via Groq is deprecated in favor of browser STT
 
 // ─── In-memory room storage ─────────────────────────────────────────────────
 const rooms = {};
@@ -66,19 +63,15 @@ io.on('connection', (socket) => {
         return socket.emit('error', 'Contraseña de Host incorrecta. Acceso denegado.');
     }
 
-    const groqKey = apiKey || GROQ_API_KEY;
-    if (!groqKey && !globalGroq) return socket.emit('error', 'No API Key found for transcription.');
-    
-    const groq = apiKey ? new Groq({ apiKey }) : globalGroq;
+    // No API key required on server side anymore; rely on browser STT and Gemini streaming
     const roomCode = generateRoomCode();
-    
-    rooms[roomCode] = { 
-      hostId: socket.id, 
-      groqClient: groq, 
-      participants: [], 
-      mode: 'conference', 
-      transcript: [], 
-      hostLang: null 
+    rooms[roomCode] = {
+      hostId: socket.id,
+      participants: [],
+      roomCode,
+      transcript: [],
+      hostLang: null,
+      groqClient: null
     };
     
     socket.join(roomCode);
@@ -145,7 +138,7 @@ io.on('connection', (socket) => {
   });
 
   // ─── Direct Text Translation (For Browser STT) ────────────────────────
-  socket.on('translate:text', async ({ roomCode, text, speakerName, speakerLang }) => {
+  socket.on('translate:text', async ({ roomCode, text, speakerName, speakerLang, streaming }) => {
     if (!rooms[roomCode] || !text) return;
 
     const room = rooms[roomCode];
@@ -155,6 +148,42 @@ io.on('connection', (socket) => {
 
     const translations = {};
     translations[speakerLang] = text;
+
+    // Streaming translation: translate interim text on-the-fly and broadcast without waiting for final
+    const shouldStream = streaming === true;
+    if (shouldStream && activeLangs.size > 0 && translationModel) {
+        const langList = Array.from(activeLangs).map(l => `${l}: ${LANG_NAMES[l] || l}`).join(', ');
+        const prompt = `Translate this text to multiple languages. \nInput text: "${text}"\nTarget languages: ${langList}\nReturn ONLY a raw JSON object where keys are the language ISO codes and values are the translation.`;
+        try {
+            const result = await translationModel.generateContent(prompt);
+            const responseText = result.response.text();
+            const jsonStr = responseText.replace(/```json|```/g, '').trim();
+            const geminiTranslations = JSON.parse(jsonStr);
+            Object.assign(translations, geminiTranslations);
+        } catch (err) {
+            console.error('Streaming translation error:', err.message);
+            activeLangs.forEach(l => translations[l] = text);
+        }
+        // Broadcast streaming translations to all participants
+        room.participants.forEach(p => {
+          io.to(p.id).emit('transcript:broadcast', {
+            senderName: speakerName,
+            langOfSender: speakerLang,
+            text: translations[p.lang] || text,
+            isMe: p.id === socket.id
+          });
+        });
+        // Also to host
+        if (room.hostId) {
+          io.to(room.hostId).emit('transcript:broadcast', {
+            senderName: speakerName,
+            langOfSender: speakerLang,
+            text: translations[room.hostLang] || text,
+            isMe: room.hostId === socket.id
+          });
+        }
+        return;
+    }
 
     if (activeLangs.size > 0 && translationModel) {
         const langList = Array.from(activeLangs).map(l => `${l}: ${LANG_NAMES[l] || l}`).join(', ');
@@ -177,7 +206,7 @@ Return ONLY a raw JSON object where keys are the language ISO codes and values a
         activeLangs.forEach(l => translations[l] = text);
     }
 
-    // Broadcast to everyone
+    // Broadcast to everyone (including interim streaming handled above)
     room.participants.forEach(p => {
         io.to(p.id).emit('transcript:broadcast', {
             senderName: speakerName,
@@ -226,6 +255,10 @@ app.post('/transcribir', upload.single('audio'), async (req, res) => {
   const tempPath = path.join(os.tmpdir(), `audio_${Date.now()}.webm`);
   
   try {
+    // If browser-based transcription is used, this endpoint should not be called.
+    if (!room || !room.groqClient) {
+      return res.status(400).json({ ok: false, error: 'Transcripción no disponible en este modo' });
+    }
     // 1. Save audio to disk
     fs.writeFileSync(tempPath, req.file.buffer);
 
