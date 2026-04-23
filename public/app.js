@@ -127,6 +127,7 @@ function initBrowserSTT() {
     }
 
     recognition = new SpeechRecognition();
+    recognition.onstart = () => console.log('[STT] started');
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = currentLang;
@@ -149,6 +150,7 @@ function initBrowserSTT() {
 
         if (finalTranscript.trim()) {
             const cleanedText = finalTranscript.trim();
+            console.log('[STT] finalTranscript', cleanedText);
             if (cleanedText !== lastFinalTranscript && cleanedText.length > 0) {
                 lastFinalTranscript = cleanedText;
                 console.log("🎤 Transcripción final:", cleanedText);
@@ -166,6 +168,7 @@ function initBrowserSTT() {
                 });
             }
         } else if (interimTranscript.trim()) {
+            console.log('[STT] interimTranscript', interimTranscript);
             updateInterimUI(interimTranscript.trim());
         }
     };
@@ -318,6 +321,10 @@ socket.on('participant:joined', (data) => {
     
     updateLangSelector(currentLang);
     
+    // Start mic and STT (browser) if enabled
+    if (typeof USE_BROWSER_STT !== 'undefined' && USE_BROWSER_STT) {
+        if (!recognition) initBrowserSTT();
+    }
     // Start mic
     isMicOn = true;
     if (recognition) {
@@ -416,6 +423,15 @@ socket.on('transcript:broadcast', (data) => {
     if (!data.text) return;
 
     addMessageToTranscript(data.senderName, data.text, false);
+
+    // Auto-switch to transcript panel for visibility
+    try {
+        if (typeof goToPanel === 'function' && currentPanel !== 0) {
+            goToPanel(0);
+        }
+    } catch (e) {
+        // ignore navigation errors
+    }
 
     // TTS for others
     if (!data.isMe) {
