@@ -8,3 +8,12 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: GROQ_API_KEY
+        generateValue: false
+        sync: false
+      - key: GEMINI_API_KEY
+        generateValue: false
+        sync: false
+      - key: HOST_PASSWORD
+        generateValue: false
+        sync: false

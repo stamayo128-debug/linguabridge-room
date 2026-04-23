@@ -1,38 +1,112 @@
 const socket = io();
 
-const setupScreen = document.getElementById('setup-screen');
-const dashScreen = document.getElementById('dashboard-screen');
-const createBtn = document.getElementById('create-btn');
-const setupError = document.getElementById('setup-error');
-const transcriptArea = document.getElementById('transcript-area');
-const displayRoomCode = document.getElementById('host-room-code');
-const participantList = document.getElementById('participant-list');
-const participantCount = document.getElementById('participant-count');
-
-const modeConf = document.getElementById('mode-conf');
-const modeMeet = document.getElementById('mode-meet');
-const endBtn = document.getElementById('end-btn');
-
-let currentRoomCode = null;
-let publicNgrokUrl = null;
+// ─── State ───
+let currentRoomCode = '';
 let currentHostName = '';
-let currentHostLang = '';
+let currentHostLang = 'es';
+let isMicOn = false;
 let mutedUsers = new Set();
+let bestVoices = {};
+let isHostMode = true;
 
-// ─── Browser Speech Recognition (Free & Fast) ──────────────────────────────
-const USE_BROWSER_STT = true; // Set to false to use Groq/Whisper on server
+// ─── DOM Elements ───
+const setupScreen = document.getElementById('setup-screen');
+const dashboardContainer = document.getElementById('dashboard-container');
+const setupForm = document.getElementById('setup-form');
+const transcriptArea = document.getElementById('transcript-area');
+const micBtn = document.getElementById('mic-btn');
+const micStatus = document.getElementById('mic-status');
+const participantsList = document.getElementById('participants-list');
+const roomCodeBadge = document.getElementById('room-code-badge');
+const participantCountBadge = document.getElementById('participant-count-badge');
+const displayRoomCode = document.getElementById('display-room-code');
+const hostNameDisplay = document.getElementById('host-name-display');
+const setupError = document.getElementById('setup-error');
+
+// ─── Swipe Navigation ───
+const swipeWrapper = document.getElementById('swipe-wrapper');
+const navPills = document.querySelectorAll('.nav-pill');
+let currentPanel = 1;
+
+function goToPanel(index) {
+    currentPanel = Math.max(0, Math.min(index, 2));
+    swipeWrapper.style.transform = `translateX(-${currentPanel * 33.333}%)`;
+    navPills.forEach((pill, i) => pill.classList.toggle('active', i === currentPanel));
+}
+
+navPills.forEach((pill, i) => pill.addEventListener('click', () => goToPanel(i)));
+
+// Touch handling
+let touchStartX = 0;
+swipeWrapper.addEventListener('touchstart', (e) => touchStartX = e.touches[0].clientX, { passive: true });
+swipeWrapper.addEventListener('touchend', () => {
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 50) {
+        if (diff > 0 && currentPanel < 2) goToPanel(currentPanel + 1);
+        else if (diff < 0 && currentPanel > 0) goToPanel(currentPanel - 1);
+    }
+    touchStartX = 0;
+});
+let touchEndX = 0;
+swipeWrapper.addEventListener('touchmove', (e) => touchEndX = e.touches[0].clientX, { passive: true });
+
+// ─── 3D Sphere ───
+const sphere = document.getElementById('sphere');
+let particles = [];
+const visualizer = document.getElementById('visualizer');
+const vizBars = visualizer.querySelectorAll('.viz-bar');
+
+function createParticles() {
+    const container = document.getElementById('sphere-particles');
+    for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        const angle = (i / 20) * Math.PI * 2;
+        const radius = 45 + Math.random() * 10;
+        particle.style.left = `${50 + Math.cos(angle) * radius}%`;
+        particle.style.top = `${50 + Math.sin(angle) * radius}%`;
+        container.appendChild(particle);
+        particles.push(particle);
+    }
+}
+createParticles();
+
+let sphereRotation = 0;
+let audioData = { avg: 0 };
+
+function animateSphere() {
+    sphereRotation += 0.002;
+    const scale = 1 + (audioData.avg / 200);
+    sphere.style.transform = `rotateY(${sphereRotation * 30}deg) rotateX(${sphereRotation * 15}deg) scale(${scale})`;
+    
+    particles.forEach((p, i) => {
+        const offset = Math.sin(sphereRotation * 2 + i * 0.5) * 5;
+        p.style.opacity = 0.3 + (audioData.avg / 300) + Math.abs(offset / 20);
+    });
+    
+    vizBars.forEach((bar, i) => {
+        const height = 10 + (audioData.avg * (1 - i * 0.15));
+        bar.style.height = `${Math.min(height, 50)}px`;
+    });
+    
+    requestAnimationFrame(animateSphere);
+}
+animateSphere();
+
+// ─── Speech Recognition ───
 let recognition;
+const USE_BROWSER_STT = true;
 
 function initBrowserSTT() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        console.warn("Este navegador no soporta reconocimiento de voz nativo.");
+        console.warn("Navegador no soporta reconocimiento de voz.");
         return;
     }
 
     recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = true; // STREAMING MODE
+    recognition.interimResults = true;
     recognition.lang = currentHostLang;
 
     let interimSpan = null;
@@ -60,342 +134,266 @@ function initBrowserSTT() {
         }
     };
 
-    function updateInterimUI(text) {
-        const welcome = transcriptArea.querySelector('.welcome-msg');
-        if (welcome) welcome.remove();
-        
-        if (!interimSpan) {
-            interimSpan = document.createElement('div');
-            interimSpan.className = 'message self interim-text';
-            transcriptArea.appendChild(interimSpan);
-        }
-        interimSpan.textContent = text;
-        transcriptArea.scrollTop = transcriptArea.scrollHeight;
-    }
-
     recognition.onerror = (err) => {
-        console.error("Speech Recognition Error:", err.error);
+        if (err.error !== 'no-speech') console.error("STT Error:", err.error);
     };
-    
-    recognition.onend = () => { 
-        if (isMicOn && USE_BROWSER_STT) {
+
+    recognition.onend = () => {
+        if (isMicOn) {
             try { recognition.start(); } catch(e) {}
         }
     };
 }
 
-// ─── Three.js Intelligence Visualizer (Same as App) ────────────────────────
-let scene, camera, renderer, particles, analyser, dataArray;
-function initThreeVisualizer() {
-    const container = document.getElementById('visualizer-container');
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    container.appendChild(renderer.domElement);
+function updateInterimUI(text) {
+    const welcome = transcriptArea.querySelector('.welcome-msg');
+    if (welcome) welcome.remove();
 
-    const geometry = new THREE.IcosahedronGeometry(2, 4);
-    const material = new THREE.PointsMaterial({
-        color: 0x10b981, // Host uses green/emerald theme
-        size: 0.05,
-        transparent: true,
-        opacity: 0.8,
-        blending: THREE.AdditiveBlending
-    });
-
-    particles = new THREE.Points(geometry, material);
-    scene.add(particles);
-    camera.position.z = 5;
-
-    function animate() {
-        requestAnimationFrame(animate);
-        particles.rotation.y += 0.002;
-        particles.rotation.x += 0.001;
-
-        if (analyser && isMicOn) {
-            analyser.getByteFrequencyData(dataArray);
-            const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
-            const scale = 1 + (avg / 150);
-            particles.scale.set(scale, scale, scale);
-            material.color.setHSL(0.3 + (avg / 500), 0.8, 0.5);
-        } else {
-            particles.scale.set(1, 1, 1);
-            material.color.setHex(0x10b981);
-        }
-        renderer.render(scene, camera);
+    let interimSpan = transcriptArea.querySelector('.interim-text');
+    if (!interimSpan) {
+        interimSpan = document.createElement('div');
+        interimSpan.className = 'message self interim-text';
+        interimSpan.style.opacity = '0.5';
+        transcriptArea.appendChild(interimSpan);
     }
-    animate();
+    interimSpan.innerHTML = `<div class="text"><em>${text}</em></div>`;
+    transcriptArea.scrollTop = transcriptArea.scrollHeight;
 }
 
-// ─── Voice Management (Web Speech API) ──────────────────────────────────────
-let bestVoices = {};
+// ─── Audio Context ───
+let audioContext, analyser, dataArray;
+
+async function initAudio() {
+    if (audioContext) return;
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        function updateAudioData() {
+            if (!analyser) return;
+            analyser.getByteFrequencyData(dataArray);
+            audioData.avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+            requestAnimationFrame(updateAudioData);
+        }
+        updateAudioData();
+
+        initBrowserSTT();
+    } catch (err) {
+        console.error("Error audio:", err);
+        micStatus.textContent = "Error: " + err.message;
+    }
+}
+
+// ─── TTS ───
 function loadVoices() {
     const voices = window.speechSynthesis.getVoices();
     const targets = ['es', 'en', 'fr', 'de', 'ja', 'zh', 'ar', 'it', 'pt'];
     targets.forEach(lang => {
-        bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Neural') || v.name.includes('Google'))) 
+        bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Neural') || v.name.includes('Google')))
                            || voices.find(v => v.lang.startsWith(lang));
     });
 }
 window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
-// ─── Tabs Navigation ────────────────────────────────────────────────────────
-function initTabs() {
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabPanes = document.querySelectorAll('.tab-pane');
-
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const target = btn.dataset.tab;
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabPanes.forEach(p => p.classList.add('hidden'));
-            btn.classList.add('active');
-            document.getElementById(`tab-${target}`).classList.remove('hidden');
-        });
-    });
-}
-initTabs();
-
-// Audio context warm-up for mobile
-function warmUpTTS() {
-    const utterance = new SpeechSynthesisUtterance(" ");
-    utterance.volume = 0;
+function speakText(text, lang) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (bestVoices[lang]) utterance.voice = bestVoices[lang];
+    utterance.lang = lang;
+    utterance.rate = 1.1;
     window.speechSynthesis.speak(utterance);
 }
 
-createBtn.addEventListener('click', () => {
-    const passwordInput = document.getElementById('host-password');
-    const password = passwordInput.value.trim();
+// ─── Create Room ───
+setupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const password = document.getElementById('host-password').value.trim();
     currentHostName = document.getElementById('host-name').value.trim() || 'Presentador';
-    currentHostLang = document.getElementById('host-lang-select').value;
+    currentHostLang = document.getElementById('host-lang').value;
     
     if (!password) {
-        setupError.textContent = "Contraseña de seguridad requerida.";
-        passwordInput.style.borderColor = "var(--danger)";
+        setupError.textContent = 'Contraseña requerida';
         return;
     }
+
+    setupError.textContent = 'Creando sala...';
     
-    createBtn.disabled = true;
-    createBtn.textContent = "Iniciando sala...";
-    setupError.textContent = "";
+    const utterance = new SpeechSynthesisUtterance(" ");
+    utterance.volume = 0;
+    window.speechSynthesis.speak(utterance);
+
+    await initAudio();
     
-    warmUpTTS();
-    socket.emit('host:create_room', { password }); // API Key handled by server
+    socket.emit('host:create_room', { password });
     
-    // Si no recibimos respuesta en 5s, restauramos el botón
     setTimeout(() => {
-        if (setupScreen.classList.contains('hidden')) return;
-        createBtn.disabled = false;
-        createBtn.textContent = "Start Secure Room";
-        setupError.textContent = "Tiempo de espera agotado. ¿Está el servidor online?";
+        if (!dashboardContainer.classList.contains('hidden')) return;
+        setupError.textContent = 'Tiempo agotado. ¿Servidor online?';
     }, 5000);
 });
 
 socket.on('host:room_created', (data) => {
     currentRoomCode = data.roomCode;
-    publicNgrokUrl = data.publicUrl || window.location.origin;
-
-    setupScreen.classList.add('hidden');
-    dashScreen.classList.remove('hidden');
-    displayRoomCode.textContent = currentRoomCode;
-
-    initThreeVisualizer(); // Iniciar visualización 3D al entrar al dashboard
-
-    const joinUrl = `${publicNgrokUrl}/?room=${currentRoomCode}`;
-    const qrContainer = document.getElementById('qrcode');
-    qrContainer.innerHTML = ''; 
-    new QRCode(qrContainer, {
-        text: joinUrl, width: 220, height: 220,
-        colorDark : "#0f172a", colorLight : "#ffffff"
-    });
-
-    const shareBtn = document.getElementById('share-btn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', async () => {
-            if (navigator.share) {
-                navigator.share({ title: 'LinguaBridge', text: `Únete: ${currentRoomCode}`, url: joinUrl });
-            } else {
-                navigator.clipboard.writeText(joinUrl);
-                alert("Enlace copiado.");
-            }
-        });
-    }
     
-    document.getElementById('host-lang-select').addEventListener('change', (e) => {
+    setupScreen.classList.add('hidden');
+    dashboardContainer.classList.remove('hidden');
+    
+    roomCodeBadge.textContent = `Sala ${currentRoomCode}`;
+    displayRoomCode.textContent = currentRoomCode;
+    hostNameDisplay.textContent = currentHostName;
+    
+    // QR Code
+    const joinUrl = `${data.publicUrl || window.location.origin}/?room=${currentRoomCode}`;
+    new QRCode(document.getElementById('qrcode'), {
+        text: joinUrl,
+        width: 160,
+        height: 160,
+        colorDark: "#0f172a",
+        colorLight: "#ffffff"
+    });
+    
+    // Share button
+    document.getElementById('share-btn').addEventListener('click', () => {
+        navigator.clipboard.writeText(joinUrl);
+        document.getElementById('share-btn').textContent = '✓ Copiado';
+        setTimeout(() => document.getElementById('share-btn').textContent = 'Copiar Enlace', 2000);
+    });
+    
+    // Lang change
+    document.getElementById('host-lang').addEventListener('change', (e) => {
         currentHostLang = e.target.value;
         socket.emit('host:change_lang', { roomCode: currentRoomCode, lang: currentHostLang });
+        if (recognition) recognition.lang = currentHostLang;
     });
-
-    document.getElementById('dl-transcript').onclick = () => window.open(`/transcript/${currentRoomCode}/${currentHostLang}`, '_blank');
-    initHostAudio();
+    
+    // Mode buttons
+    document.getElementById('mode-conf').addEventListener('click', () => {
+        socket.emit('host:toggle_mode', { roomCode: currentRoomCode, mode: 'conference' });
+        document.getElementById('mode-conf').style.background = 'var(--primary)';
+        document.getElementById('mode-meet').style.background = '';
+        document.getElementById('mode-conf').style.color = 'white';
+        document.getElementById('mode-meet').style.color = 'var(--text-normal)';
+    });
+    
+    document.getElementById('mode-meet').addEventListener('click', () => {
+        socket.emit('host:toggle_mode', { roomCode: currentRoomCode, mode: 'meeting' });
+        document.getElementById('mode-meet').style.background = 'var(--primary)';
+        document.getElementById('mode-conf').style.background = '';
+        document.getElementById('mode-meet').style.color = 'white';
+        document.getElementById('mode-conf').style.color = 'var(--text-normal)';
+    });
+    
+    // End session
+    document.getElementById('end-btn').addEventListener('click', () => {
+        if (confirm('¿Terminar sesión?')) {
+            socket.emit('host:end_room', { roomCode: currentRoomCode });
+            window.location.reload();
+        }
+    });
+    
+    // Start mic
+    isMicOn = true;
+    try { recognition.start(); } catch(e) {}
+    updateMicUI();
 });
 
+// ─── Mic Control ───
+micBtn.addEventListener('click', () => {
+    isMicOn = !isMicOn;
+    if (isMicOn) try { recognition.start(); } catch(e) {}
+    else recognition.stop();
+    updateMicUI();
+});
+
+function updateMicUI() {
+    micBtn.classList.toggle('active', isMicOn);
+    micStatus.textContent = isMicOn ? 'Escuchando...' : 'Micrófono apagado';
+}
+
+// ─── Participants List ───
 socket.on('room:roster_update', (data) => {
     const participants = data.participants;
-    participantCount.textContent = participants.length;
-    participantList.innerHTML = participants.length === 0 ? '<li class="empty-state">Nadie conectado aún.</li>' : '';
-
+    participantCountBadge.textContent = `${participants.length} conectados`;
+    
+    if (participants.length === 0) {
+        participantsList.innerHTML = '<div class="welcome-msg">Nadie conectado aún</div>';
+        return;
+    }
+    
+    participantsList.innerHTML = '';
+    
+    const flags = { es:'🇪🇸', en:'🇬🇧', fr:'🇫🇷', de:'🇩🇪', ja:'🇯🇵', zh:'🇨🇳', ar:'🇸🇦', it:'🇮🇹', pt:'🇵🇹' };
+    
     participants.forEach(p => {
-        const li = document.createElement('li');
-        const flag = { es:'🇪🇸', en:'🇬🇧', fr:'🇫🇷', de:'🇩🇪', ja:'🇯🇵', zh:'🇨🇳', ar:'🇸🇦', it:'🇮🇹', pt:'🇵🇹' }[p.lang] || '🌐';
         const isMuted = mutedUsers.has(p.id);
-        li.innerHTML = `
-            <div><strong>${p.name}</strong> <span class="lang-badge">${flag} ${p.lang.toUpperCase()}</span></div>
-            <button class="btn small action-btn" style="background:${isMuted ? 'var(--accent)' : 'var(--glass-bg)'}; color:${isMuted ? '#0f172a' : 'var(--danger)'};">
-                ${isMuted ? 'Dar Voz' : 'Silenciar'}
+        const card = document.createElement('div');
+        card.className = 'participant-card';
+        card.innerHTML = `
+            <div class="participant-info">
+                <div class="avatar">${p.name.charAt(0).toUpperCase()}</div>
+                <div>
+                    <div class="participant-name">${p.name}</div>
+                    <div class="participant-lang">${flags[p.lang] || '🌐'} ${p.lang.toUpperCase()}</div>
+                </div>
+            </div>
+            <button class="mute-toggle ${isMuted ? 'muted' : 'speaking'}" data-id="${p.id}">
+                ${isMuted ? '🔇 Silenciar' : '🎤 Dar voz'}
             </button>
         `;
-        li.querySelector('button').onclick = () => {
+        
+        card.querySelector('.mute-toggle').addEventListener('click', () => {
             const currentlyMuted = mutedUsers.has(p.id);
-            socket.emit(currentlyMuted ? 'host:unmute_user' : 'host:mute_user', { targetId: p.id });
-            if (currentlyMuted) mutedUsers.delete(p.id); else mutedUsers.add(p.id);
-        };
-        participantList.appendChild(li);
+            if (currentlyMuted) {
+                mutedUsers.delete(p.id);
+                socket.emit('host:unmute_user', { targetId: p.id });
+                card.querySelector('.mute-toggle').className = 'mute-toggle speaking';
+                card.querySelector('.mute-toggle').textContent = '🔇 Silenciar';
+            } else {
+                mutedUsers.add(p.id);
+                socket.emit('host:mute_user', { targetId: p.id });
+                card.querySelector('.mute-toggle').className = 'mute-toggle muted';
+                card.querySelector('.mute-toggle').textContent = '🎤 Dar voz';
+            }
+        });
+        
+        participantsList.appendChild(card);
     });
 });
 
-modeConf.onclick = () => { socket.emit('host:set_mode', { roomCode: currentRoomCode, mode: 'conference' }); modeConf.classList.add('active'); modeMeet.classList.remove('active'); };
-modeMeet.onclick = () => { socket.emit('host:set_mode', { roomCode: currentRoomCode, mode: 'meeting' }); modeMeet.classList.add('active'); modeConf.classList.remove('active'); };
-endBtn.onclick = () => { if (confirm("¿Cerrar sesión?")) { socket.emit('host:end_room', { roomCode: currentRoomCode }); window.location.reload(); } };
-
-// ─── Host Audio & VAD ───────────────────────────────────────────────────────
-const micBtn = document.getElementById('mic-btn');
-const micStatusText = document.getElementById('mic-status-text');
-const sensitivitySlider = document.getElementById('sensitivity-slider');
-let mediaRecorder, audioChunks = [], isMicOn = false, isSpeaking = false;
-let silenceStart = Date.now(), speechStart = Date.now();
-let audioQueue = [], isPlayingTTS = false;
-
-async function initHostAudio() {
-    if (typeof audioContext !== 'undefined' && audioContext) return;
-    
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-        microphone = audioContext.createMediaStreamSource(stream);
-        scriptProcessor = audioContext.createScriptProcessor(1024, 1, 1);
-        
-        microphone.connect(analyser);
-        microphone.connect(scriptProcessor);
-        scriptProcessor.connect(audioContext.destination);
-
-        const bars = document.querySelectorAll('#host-visualizer .bar');
-
-        scriptProcessor.onaudioprocess = (e) => {
-            if (!isMicOn) {
-                bars.forEach(b => b.style.height = '10px');
-                return;
-            }
-            const data = e.inputBuffer.getChannelData(0);
-            const rms = Math.sqrt(data.reduce((s, v) => s + v * v, 0) / data.length);
-            
-            // Update VAD bars
-            const height = Math.min(10 + (rms * 200), 40);
-            bars.forEach((b, i) => {
-                b.style.height = `${height * (1 - i*0.1)}px`;
-            });
-
-            if (USE_BROWSER_STT) return; // Recognition handles the rest below
-
-            const umbral = parseFloat(sensitivitySlider.value);
-            const hayVoz = rms > umbral;
-
-            if (hayVoz) {
-                if (!isSpeaking) {
-                    isSpeaking = true;
-                    speechStart = Date.now();
-                    audioChunks = [];
-                    mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
-                    mediaRecorder.ondataavailable = ev => { if (ev.data.size > 0) audioChunks.push(ev.data); };
-                    mediaRecorder.onstop = enviarHostAudio;
-                    mediaRecorder.start(); 
-                    micStatusText.textContent = "Escuchando...";
-                }
-                silenceStart = Date.now();
-            } else {
-                if (isSpeaking && (Date.now() - silenceStart > 300)) {
-                    isSpeaking = false;
-                    micStatusText.textContent = "Procesando...";
-                    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-                }
-            }
-        };
-
-        if (USE_BROWSER_STT) {
-            initBrowserSTT();
-            isMicOn = true;
-            try { recognition.start(); } catch(e) {}
-            updateHostMicUI();
-        }
-
-        micBtn.addEventListener('click', () => {
-            if (audioContext.state === 'suspended') audioContext.resume();
-            isMicOn = !isMicOn;
-            if (USE_BROWSER_STT) {
-                if (isMicOn) try { recognition.start(); } catch(e) {}
-                else recognition.stop();
-            }
-            updateHostMicUI();
-        });
-    } catch (err) { micStatusText.textContent = "Error Mic: " + err.message; }
-}
-
-function updateHostMicUI() {
-    micBtn.classList.toggle('active', isMicOn);
-    micBtn.innerHTML = isMicOn ? 'Mic. encendido (Toca para apagar)' : 'Mic. apagado (Toca para encender)';
-    micStatusText.textContent = isMicOn ? "Micrófono Host Activo" : "Silenciado";
-}
-
-async function enviarHostAudio() {
-    if (audioChunks.length === 0) return;
-    if (Date.now() - speechStart < 500) { audioChunks = []; return; }
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-    audioChunks = [];
-    const formData = new FormData();
-    formData.append("audio", blob, "audio.webm");
-    formData.append("roomCode", currentRoomCode);
-    formData.append("speakerName", currentHostName);
-    formData.append("speakerLang", currentHostLang);
-    formData.append("isHost", "true");
-    fetch('/transcribir', { method: 'POST', body: formData });
-}
-
+// ─── Transcript ───
 socket.on('transcript:broadcast', (data) => {
     if (!data.text) return;
-    const w = transcriptArea.querySelector('.welcome-msg');
-    if (w) w.remove();
+
+    const welcome = transcriptArea.querySelector('.welcome-msg');
+    if (welcome) welcome.remove();
+
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${data.isMe ? 'self' : ''}`;
-    msgDiv.innerHTML = `<div class="msg-header"><span>${data.senderName}</span></div><div class="msg-content">${data.text}</div>`;
+    msgDiv.innerHTML = `
+        <div class="sender">${data.senderName}</div>
+        <div class="text">${data.text}</div>
+    `;
     transcriptArea.appendChild(msgDiv);
-    transcriptArea.scrollTop = transcriptArea.scrollHeight; 
+    transcriptArea.scrollTop = transcriptArea.scrollHeight;
 
+    // TTS for others' messages
     if (!data.isMe) {
-        audioQueue.push({ text: data.text, lang: currentHostLang });
-        if (!isPlayingTTS) playNextHostAudioNative();
+        speakText(data.text, currentHostLang);
     }
 });
 
-function playNextHostAudioNative() {
-    if (audioQueue.length === 0) { isPlayingTTS = false; return; }
-    isPlayingTTS = true;
-    const { text, lang } = audioQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (bestVoices[lang]) utterance.voice = bestVoices[lang];
-    utterance.lang = lang;
-    utterance.onend = playNextHostAudioNative;
-    utterance.onerror = playNextHostAudioNative;
-    window.speechSynthesis.speak(utterance);
-}
+// ─── Error Handling ───
 socket.on('error', (msg) => {
-    createBtn.disabled = false;
-    createBtn.textContent = "Start Secure Room";
-    if (setupError) setupError.textContent = msg;
-    else alert(msg);
+    setupError.textContent = msg;
 });
 
-socket.on('room:closed', () => { window.location.reload(); });
+socket.on('room:closed', () => {
+    window.location.reload();
+});

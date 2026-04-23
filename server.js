@@ -94,6 +94,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('room:roster_request', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (room && room.hostId === socket.id) {
+      io.to(room.hostId).emit('room:roster_update', { participants: room.participants });
+    }
+  });
+
   socket.on('host:mute_user', ({ targetId }) => {
     // Individual mute
     io.to(targetId).emit('host:force_mute');

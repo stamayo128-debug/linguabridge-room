@@ -1,0 +1,14 @@
+2026-04-20 23:05:20,132 - root - INFO - Anonymized telemetry enabled. See https://docs.browser-use.com/development/telemetry for more information.
+2026-04-20 23:05:24,598 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2026-04-20 23:05:24,605 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-20 23:05:24,607 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
+2026-04-22 20:34:42,840 - root - INFO - Anonymized telemetry enabled. See https://docs.browser-use.com/development/telemetry for more information.
+2026-04-22 20:34:47,526 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2026-04-22 20:34:47,532 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 20:34:47,534 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
+2026-04-22 20:35:10,782 - root - INFO - Anonymized telemetry enabled. See https://docs.browser-use.com/development/telemetry for more information.
+2026-04-22 20:35:13,782 - mcp.server.lowlevel.server - INFO - Processing request of type ListToolsRequest
+2026-04-22 20:35:13,787 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 20:35:13,788 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 20:35:13,790 - mcp.server.lowlevel.server - INFO - Processing request of type ListResourcesRequest
+2026-04-22 20:35:13,791 - mcp.server.lowlevel.server - INFO - Processing request of type ListPromptsRequest
