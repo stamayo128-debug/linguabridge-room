@@ -29,7 +29,7 @@
         <div class="input-group">
             <label for="lang-select">Idioma para OÍR/LEER</label>
             <select id="lang-select">
-                <option value="es">🇪🇸 Español</option>
+                <option value="es" selected>🇪🇸 Español</option>
                 <option value="en">🇬🇧 English</option>
                 <option value="fr">🇫🇷 Français</option>
                 <option value="de">🇩🇪 Deutsch</option>
@@ -54,37 +54,22 @@
 <div class="swipe-container hidden" id="room-container">
     <div class="swipe-wrapper" id="swipe-wrapper">
         
-        <!-- ─── PANEL LEFT: Transcript (Dashboard) ─── -->
+        <!-- ─── PANEL LEFT: Transcript ─── -->
         <div class="panel panel-left" id="panel-transcript">
             <div class="panel-header">
-                <h2><span class="pulse-dot"></span> Transcripción en Vivo</h2>
+                <h2><span class="pulse-dot"></span> Transcripción</h2>
                 <span class="header-badge" id="room-code-badge">Sala 0000</span>
             </div>
             
             <div class="transcript-area" id="transcript-area">
                 <div class="welcome-msg">Habla para ver la traducción aquí...</div>
             </div>
-            
-            <div class="control-section" style="padding: 0 20px 20px;">
-                <h4>Tu Idioma</h4>
-                <div class="lang-selector" id="lang-selector">
-                    <button class="lang-chip active" data-lang="es">🇪🇸 ES</button>
-                    <button class="lang-chip" data-lang="en">🇬🇧 EN</button>
-                    <button class="lang-chip" data-lang="fr">🇫🇷 FR</button>
-                    <button class="lang-chip" data-lang="de">🇩🇪 DE</button>
-                    <button class="lang-chip" data-lang="ja">🇯🇵 JA</button>
-                    <button class="lang-chip" data-lang="zh">🇨🇳 ZH</button>
-                    <button class="lang-chip" data-lang="ar">🇸🇦 AR</button>
-                    <button class="lang-chip" data-lang="it">🇮🇹 IT</button>
-                    <button class="lang-chip" data-lang="pt">🇵🇹 PT</button>
-                </div>
-            </div>
         </div>
         
         <!-- ─── PANEL CENTER: 3D Sphere ─── -->
         <div class="panel panel-center" id="panel-sphere">
             <div class="panel-header">
-                <h2>Tu Idioma: <span id="current-lang-display">ES</span></h2>
+                <h2>Tu idioma: <span id="current-lang-display" style="color: var(--accent);">ES</span></h2>
             </div>
             
             <div class="sphere-container">
@@ -94,7 +79,7 @@
                 <div class="sphere-particles" id="sphere-particles"></div>
             </div>
             
-            <div class="mic-container" style="position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);">
+            <div class="mic-container" style="position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);">
                 <div class="visualizer" id="visualizer">
                     <div class="viz-bar" style="height: 10px;"></div>
                     <div class="viz-bar" style="height: 10px;"></div>
@@ -111,17 +96,43 @@
                 </button>
                 <span class="mic-status" id="mic-status">Micrófono apagado</span>
             </div>
+            
+            <!-- Language selector -->
+            <div style="position: absolute; bottom: 20px; left: 0; right: 0;">
+                <div class="lang-selector" id="lang-selector">
+                    <button class="lang-chip active" data-lang="es">🇪🇸</button>
+                    <button class="lang-chip" data-lang="en">🇬🇧</button>
+                    <button class="lang-chip" data-lang="fr">🇫🇷</button>
+                    <button class="lang-chip" data-lang="de">🇩🇪</button>
+                    <button class="lang-chip" data-lang="ja">🇯🇵</button>
+                    <button class="lang-chip" data-lang="zh">🇨🇳</button>
+                    <button class="lang-chip" data-lang="ar">🇸🇦</button>
+                    <button class="lang-chip" data-lang="it">🇮🇹</button>
+                    <button class="lang-chip" data-lang="pt">🇵🇹</button>
+                </div>
+            </div>
         </div>
         
-        <!-- ─── PANEL RIGHT: Participants (Host Only) ─── -->
-        <div class="panel panel-right hidden" id="panel-participants">
+        <!-- ─── PANEL RIGHT: Info ─── -->
+        <div class="panel panel-right" id="panel-info">
             <div class="panel-header">
-                <h2>👥 Participantes</h2>
-                <span class="header-badge" id="participant-count-badge">0 conectados</span>
+                <h2>ℹ️ Info</h2>
             </div>
             
-            <div style="flex: 1; overflow-y: auto; padding: 0 20px;" id="participants-list">
-                <div class="welcome-msg">Nadie conectado aún</div>
+            <div style="padding: 20px; flex: 1;">
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px;">
+                    <h4 style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">SALA</h4>
+                    <div id="info-room-code" style="font-size: 2rem; font-weight: 700; color: var(--primary-light); letter-spacing: 4px;">0000</div>
+                </div>
+                
+                <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px;">
+                    <h4 style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 8px;">TU NOMBRE</h4>
+                    <div id="info-name" style="font-size: 1.2rem; font-weight: 600;">-</div>
+                </div>
+                
+                <div style="margin-top: 24px; color: var(--text-dim); font-size: 0.85rem; text-align: center;">
+                    <p>Desliza a la derecha para cambiar tu idioma</p>
+                </div>
             </div>
         </div>
         
@@ -131,7 +142,7 @@
     <div class="nav-pills">
         <div class="nav-pill" data-panel="transcript"></div>
         <div class="nav-pill active" data-panel="sphere"></div>
-        <div class="nav-pill hidden" data-panel="participants"></div>
+        <div class="nav-pill" data-panel="info"></div>
     </div>
 </div>
 

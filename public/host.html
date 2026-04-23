@@ -24,7 +24,7 @@
         
         <div class="input-group">
             <label for="host-name">Tu Nombre</label>
-            <input type="text" id="host-name" placeholder="Nombre del presentador" value="Presentador" autocomplete="off">
+            <input type="text" id="host-name" placeholder="Nombre del presentador" value="Anfitrión" autocomplete="off">
         </div>
         
         <div class="input-group">
@@ -66,17 +66,17 @@
         <!-- ─── PANEL CENTER: 3D Sphere ─── -->
         <div class="panel panel-center" id="panel-sphere">
             <div class="panel-header">
-                <h2>Host: <span id="host-name-display">Presentador</span></h2>
+                <h2><span id="host-name-display">Anfitrión</span> <span style="color: var(--text-muted); font-size: 0.85rem;">• Cambia tu idioma abajo</span></h2>
             </div>
             
             <div class="sphere-container">
-                <div class="sphere" id="sphere" style="background: radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.3), rgba(59, 130, 246, 0.2), transparent 70%);">
+                <div class="sphere" id="sphere">
                     <div class="sphere-inner"></div>
                 </div>
                 <div class="sphere-particles" id="sphere-particles"></div>
             </div>
             
-            <div class="mic-container" style="position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);">
+            <div class="mic-container" style="position: absolute; bottom: 140px; left: 50%; transform: translateX(-50%);">
                 <div class="visualizer" id="visualizer">
                     <div class="viz-bar" style="height: 10px;"></div>
                     <div class="viz-bar" style="height: 10px;"></div>
@@ -94,10 +94,19 @@
                 <span class="mic-status" id="mic-status">Micrófono apagado</span>
             </div>
             
-            <!-- Mode Toggle -->
-            <div style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px;">
-                <button class="btn btn-small" id="mode-conf" style="background: var(--primary);">Conferencia</button>
-                <button class="btn btn-small btn-secondary" id="mode-meet">Reunión</button>
+            <!-- Language selector for host -->
+            <div class="lang-selector" style="position: absolute; bottom: 20px; left: 0; right: 0;">
+                <select id="host-lang" style="width: 90%; max-width: 300px; margin: 0 auto; display: block;">
+                    <option value="es" selected>🇪🇸 Español</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                    <option value="zh">🇨🇳 中文</option>
+                    <option value="ar">🇸🇦 العربية</option>
+                    <option value="it">🇮🇹 Italiano</option>
+                    <option value="pt">🇵🇹 Português</option>
+                </select>
             </div>
         </div>
         
@@ -108,16 +117,16 @@
                 <span class="header-badge" id="participant-count-badge">0 conectados</span>
             </div>
             
-            <div style="flex: 1; overflow-y: auto; padding: 0 20px;" id="participants-list">
+            <div style="flex: 1; overflow-y: auto; padding: 20px;" id="participants-list">
                 <div class="welcome-msg">Nadie conectado aún</div>
             </div>
             
-            <div class="control-section" style="padding: 20px;">
-                <h4>Compartir Sala</h4>
+            <div style="padding: 20px; border-top: 1px solid var(--border);">
+                <h4 style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase;">Compartir Sala</h4>
                 <div class="qr-container" id="qrcode"></div>
                 <div class="room-code" id="display-room-code">0000</div>
                 <button class="btn btn-secondary btn-small" id="share-btn" style="width: 100%; margin-bottom: 12px;">Copiar Enlace</button>
-                <button class="btn btn-danger btn-small" id="end-btn" style="width: 100%;">Terminar Sesión</button>
+                <button class="btn btn-primary btn-small" id="end-btn" style="width: 100%; background: var(--danger);">Terminar Sesión</button>
             </div>
         </div>
         

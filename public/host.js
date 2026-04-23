@@ -7,7 +7,7 @@ let currentHostLang = 'es';
 let isMicOn = false;
 let mutedUsers = new Set();
 let bestVoices = {};
-let isHostMode = true;
+let transcriptMessages = [];
 
 // ─── DOM Elements ───
 const setupScreen = document.getElementById('setup-screen');
@@ -27,6 +27,7 @@ const setupError = document.getElementById('setup-error');
 const swipeWrapper = document.getElementById('swipe-wrapper');
 const navPills = document.querySelectorAll('.nav-pill');
 let currentPanel = 1;
+let touchStartX = 0, touchEndX = 0;
 
 function goToPanel(index) {
     currentPanel = Math.max(0, Math.min(index, 2));
@@ -36,9 +37,8 @@ function goToPanel(index) {
 
 navPills.forEach((pill, i) => pill.addEventListener('click', () => goToPanel(i)));
 
-// Touch handling
-let touchStartX = 0;
 swipeWrapper.addEventListener('touchstart', (e) => touchStartX = e.touches[0].clientX, { passive: true });
+swipeWrapper.addEventListener('touchmove', (e) => touchEndX = e.touches[0].clientX, { passive: true });
 swipeWrapper.addEventListener('touchend', () => {
     const diff = touchStartX - touchEndX;
     if (Math.abs(diff) > 50) {
@@ -46,103 +46,129 @@ swipeWrapper.addEventListener('touchend', () => {
         else if (diff < 0 && currentPanel > 0) goToPanel(currentPanel - 1);
     }
     touchStartX = 0;
+    touchEndX = 0;
 });
-let touchEndX = 0;
-swipeWrapper.addEventListener('touchmove', (e) => touchEndX = e.touches[0].clientX, { passive: true });
 
 // ─── 3D Sphere ───
 const sphere = document.getElementById('sphere');
-let particles = [];
+const sphereContainer = document.querySelector('.sphere-container');
 const visualizer = document.getElementById('visualizer');
 const vizBars = visualizer.querySelectorAll('.viz-bar');
+let particles = [];
+let sphereRotation = 0;
+let targetScale = 1;
+let currentScale = 1;
+let audioData = { avg: 0 };
 
 function createParticles() {
     const container = document.getElementById('sphere-particles');
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
         const particle = document.createElement('div');
         particle.className = 'particle';
-        const angle = (i / 20) * Math.PI * 2;
-        const radius = 45 + Math.random() * 10;
+        const angle = (i / 30) * Math.PI * 2;
+        const radius = 40 + Math.random() * 15;
         particle.style.left = `${50 + Math.cos(angle) * radius}%`;
         particle.style.top = `${50 + Math.sin(angle) * radius}%`;
+        particle.style.animationDelay = `${Math.random() * 2}s`;
         container.appendChild(particle);
         particles.push(particle);
     }
 }
 createParticles();
 
-let sphereRotation = 0;
-let audioData = { avg: 0 };
-
 function animateSphere() {
-    sphereRotation += 0.002;
-    const scale = 1 + (audioData.avg / 200);
-    sphere.style.transform = `rotateY(${sphereRotation * 30}deg) rotateX(${sphereRotation * 15}deg) scale(${scale})`;
+    sphereRotation += 0.003;
+    currentScale += (targetScale - currentScale) * 0.1;
+    
+    const rotY = sphereRotation * 25;
+    const rotX = Math.sin(sphereRotation * 0.5) * 10;
+    sphere.style.transform = `rotateY(${rotY}deg) rotateX(${rotX}deg) scale(${currentScale})`;
     
     particles.forEach((p, i) => {
-        const offset = Math.sin(sphereRotation * 2 + i * 0.5) * 5;
-        p.style.opacity = 0.3 + (audioData.avg / 300) + Math.abs(offset / 20);
+        const offset = Math.sin(sphereRotation * 1.5 + i * 0.3) * 8;
+        const pulse = 0.3 + (audioData.avg / 250);
+        p.style.opacity = Math.min(pulse + Math.abs(offset / 30), 1);
+        p.style.transform = `translateY(${offset}px)`;
     });
     
     vizBars.forEach((bar, i) => {
-        const height = 10 + (audioData.avg * (1 - i * 0.15));
-        bar.style.height = `${Math.min(height, 50)}px`;
+        const baseHeight = 10 + (audioData.avg * (1 - i * 0.12));
+        bar.style.height = `${Math.min(baseHeight + Math.random() * 5, 50)}px`;
     });
+    
+    if (sphereContainer) {
+        const glowIntensity = Math.min(audioData.avg / 100, 1);
+        sphereContainer.style.filter = `drop-shadow(0 0 ${20 + glowIntensity * 30}px rgba(16, 185, 129, ${glowIntensity * 0.5}))`;
+    }
     
     requestAnimationFrame(animateSphere);
 }
 animateSphere();
 
 // ─── Speech Recognition ───
-let recognition;
-const USE_BROWSER_STT = true;
+let recognition = null;
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function initBrowserSTT() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!SpeechRecognitionAPI) {
         console.warn("Navegador no soporta reconocimiento de voz.");
-        return;
+        micStatus.textContent = "STT no disponible";
+        return false;
     }
 
     recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = currentHostLang;
+    recognition.maxAlternatives = 1;
 
-    let interimSpan = null;
+    let lastFinalTranscript = '';
 
     recognition.onresult = (event) => {
-        let interimTranscript = '';
         let finalTranscript = '';
+        let interimTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
-            else interimTranscript += event.results[i][0].transcript;
+            const result = event.results[i];
+            if (result.isFinal) {
+                finalTranscript += result[0].transcript;
+            } else {
+                interimTranscript += result[0].transcript;
+            }
         }
 
-        if (finalTranscript) {
-            if (interimSpan) interimSpan.remove();
-            interimSpan = null;
-            socket.emit('translate:text', {
-                roomCode: currentRoomCode,
-                text: finalTranscript.trim(),
-                speakerName: currentHostName,
-                speakerLang: currentHostLang
-            });
-        } else if (interimTranscript) {
-            updateInterimUI(interimTranscript);
+        if (finalTranscript.trim()) {
+            const cleanedText = finalTranscript.trim();
+            if (cleanedText !== lastFinalTranscript && cleanedText.length > 0) {
+                lastFinalTranscript = cleanedText;
+                console.log("🎤 Host transcription:", cleanedText);
+                
+                const interim = transcriptArea.querySelector('.interim-text');
+                if (interim) interim.remove();
+                
+                socket.emit('translate:text', {
+                    roomCode: currentRoomCode,
+                    text: cleanedText,
+                    speakerName: currentHostName,
+                    speakerLang: currentHostLang
+                });
+            }
+        } else if (interimTranscript.trim()) {
+            updateInterimUI(interimTranscript.trim());
         }
     };
 
-    recognition.onerror = (err) => {
-        if (err.error !== 'no-speech') console.error("STT Error:", err.error);
+    recognition.onerror = (event) => {
+        if (event.error !== 'no-speech') console.error("STT Error:", event.error);
     };
 
     recognition.onend = () => {
-        if (isMicOn) {
+        if (isMicOn && recognition) {
             try { recognition.start(); } catch(e) {}
         }
     };
+
+    return true;
 }
 
 function updateInterimUI(text) {
@@ -152,41 +178,51 @@ function updateInterimUI(text) {
     let interimSpan = transcriptArea.querySelector('.interim-text');
     if (!interimSpan) {
         interimSpan = document.createElement('div');
-        interimSpan.className = 'message self interim-text';
-        interimSpan.style.opacity = '0.5';
+        interimSpan.className = 'message interim-text';
         transcriptArea.appendChild(interimSpan);
     }
-    interimSpan.innerHTML = `<div class="text"><em>${text}</em></div>`;
+    interimSpan.innerHTML = `<div class="text" style="opacity: 0.6; font-style: italic;">${text}...</div>`;
     transcriptArea.scrollTop = transcriptArea.scrollHeight;
 }
 
 // ─── Audio Context ───
-let audioContext, analyser, dataArray;
+let audioContext, analyser, dataArray, micStream;
 
 async function initAudio() {
     if (audioContext) return;
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+        micStream = await navigator.mediaDevices.getUserMedia({ 
+            audio: { 
+                noiseSuppression: false, 
+                echoCancellation: false,
+                autoGainControl: false
+            } 
+        });
+        
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.8;
         dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const source = audioContext.createMediaStreamSource(stream);
+        
+        const source = audioContext.createMediaStreamSource(micStream);
         source.connect(analyser);
 
         function updateAudioData() {
             if (!analyser) return;
             analyser.getByteFrequencyData(dataArray);
             audioData.avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+            targetScale = 1 + (audioData.avg / 150);
             requestAnimationFrame(updateAudioData);
         }
         updateAudioData();
 
-        initBrowserSTT();
+        return initBrowserSTT();
     } catch (err) {
         console.error("Error audio:", err);
         micStatus.textContent = "Error: " + err.message;
+        return false;
     }
 }
 
@@ -195,7 +231,8 @@ function loadVoices() {
     const voices = window.speechSynthesis.getVoices();
     const targets = ['es', 'en', 'fr', 'de', 'ja', 'zh', 'ar', 'it', 'pt'];
     targets.forEach(lang => {
-        bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Neural') || v.name.includes('Google')))
+        bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && v.name.includes('Neural'))
+                           || voices.find(v => v.lang.startsWith(lang) && v.name.includes('Google'))
                            || voices.find(v => v.lang.startsWith(lang));
     });
 }
@@ -203,10 +240,11 @@ window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
 function speakText(text, lang) {
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     if (bestVoices[lang]) utterance.voice = bestVoices[lang];
     utterance.lang = lang;
-    utterance.rate = 1.1;
+    utterance.rate = 1;
     window.speechSynthesis.speak(utterance);
 }
 
@@ -225,9 +263,9 @@ setupForm.addEventListener('submit', async (e) => {
 
     setupError.textContent = 'Creando sala...';
     
-    const utterance = new SpeechSynthesisUtterance(" ");
-    utterance.volume = 0;
-    window.speechSynthesis.speak(utterance);
+    const utt = new SpeechSynthesisUtterance(" ");
+    utt.volume = 0;
+    window.speechSynthesis.speak(utt);
 
     await initAudio();
     
@@ -239,7 +277,7 @@ setupForm.addEventListener('submit', async (e) => {
     }, 5000);
 });
 
-socket.on('host:room_created', (data) => {
+socket.on('host:room_created', async (data) => {
     currentRoomCode = data.roomCode;
     
     setupScreen.classList.add('hidden');
@@ -262,8 +300,9 @@ socket.on('host:room_created', (data) => {
     // Share button
     document.getElementById('share-btn').addEventListener('click', () => {
         navigator.clipboard.writeText(joinUrl);
-        document.getElementById('share-btn').textContent = '✓ Copiado';
-        setTimeout(() => document.getElementById('share-btn').textContent = 'Copiar Enlace', 2000);
+        const btn = document.getElementById('share-btn');
+        btn.textContent = '✓ Copiado';
+        setTimeout(() => btn.textContent = 'Copiar Enlace', 2000);
     });
     
     // Lang change
@@ -271,23 +310,6 @@ socket.on('host:room_created', (data) => {
         currentHostLang = e.target.value;
         socket.emit('host:change_lang', { roomCode: currentRoomCode, lang: currentHostLang });
         if (recognition) recognition.lang = currentHostLang;
-    });
-    
-    // Mode buttons
-    document.getElementById('mode-conf').addEventListener('click', () => {
-        socket.emit('host:toggle_mode', { roomCode: currentRoomCode, mode: 'conference' });
-        document.getElementById('mode-conf').style.background = 'var(--primary)';
-        document.getElementById('mode-meet').style.background = '';
-        document.getElementById('mode-conf').style.color = 'white';
-        document.getElementById('mode-meet').style.color = 'var(--text-normal)';
-    });
-    
-    document.getElementById('mode-meet').addEventListener('click', () => {
-        socket.emit('host:toggle_mode', { roomCode: currentRoomCode, mode: 'meeting' });
-        document.getElementById('mode-meet').style.background = 'var(--primary)';
-        document.getElementById('mode-conf').style.background = '';
-        document.getElementById('mode-meet').style.color = 'white';
-        document.getElementById('mode-conf').style.color = 'var(--text-normal)';
     });
     
     // End session
@@ -300,21 +322,70 @@ socket.on('host:room_created', (data) => {
     
     // Start mic
     isMicOn = true;
-    try { recognition.start(); } catch(e) {}
+    if (recognition) {
+        try { recognition.start(); } catch(e) { console.log("Start error:", e); }
+    }
     updateMicUI();
+    
+    addMessageToTranscript('Sistema', 'Sala creada. ¡Bienvenido!', true);
 });
 
 // ─── Mic Control ───
 micBtn.addEventListener('click', () => {
     isMicOn = !isMicOn;
-    if (isMicOn) try { recognition.start(); } catch(e) {}
-    else recognition.stop();
+    
+    if (isMicOn) {
+        if (recognition) {
+            try { recognition.start(); } catch(e) {}
+        }
+        targetScale = 1.1;
+    } else {
+        if (recognition) {
+            try { recognition.stop(); } catch(e) {}
+        }
+        targetScale = 1;
+    }
+    
     updateMicUI();
 });
 
 function updateMicUI() {
     micBtn.classList.toggle('active', isMicOn);
-    micStatus.textContent = isMicOn ? 'Escuchando...' : 'Micrófono apagado';
+    micStatus.textContent = isMicOn ? '🎤 Escuchando...' : '⏸️ Micrófono apagado';
+    micBtn.style.boxShadow = isMicOn 
+        ? '0 0 30px rgba(16, 185, 129, 0.6), 0 8px 30px rgba(16, 185, 129, 0.4)' 
+        : '0 8px 30px rgba(0, 0, 0, 0.3)';
+}
+
+// ─── Transcript ───
+function addMessageToTranscript(sender, text, isSystem = false) {
+    const welcome = transcriptArea.querySelector('.welcome-msg');
+    if (welcome) welcome.remove();
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${isSystem ? 'system' : ''} fade-in`;
+    
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    msgDiv.innerHTML = `
+        <div class="msg-header">
+            <span class="sender">${sender}</span>
+            <span class="time">${time}</span>
+        </div>
+        <div class="text">${text}</div>
+    `;
+    
+    transcriptArea.appendChild(msgDiv);
+    transcriptArea.scrollTop = transcriptArea.scrollHeight;
+    
+    transcriptMessages.push({ sender, text, time });
+    
+    if (transcriptMessages.length > 50) {
+        transcriptMessages.shift();
+        if (transcriptArea.children.length > 50) {
+            transcriptArea.children[0].remove();
+        }
+    }
 }
 
 // ─── Participants List ───
@@ -337,7 +408,7 @@ socket.on('room:roster_update', (data) => {
         card.className = 'participant-card';
         card.innerHTML = `
             <div class="participant-info">
-                <div class="avatar">${p.name.charAt(0).toUpperCase()}</div>
+                <div class="avatar" style="background: linear-gradient(135deg, #10b981, #059669);">${p.name.charAt(0).toUpperCase()}</div>
                 <div>
                     <div class="participant-name">${p.name}</div>
                     <div class="participant-lang">${flags[p.lang] || '🌐'} ${p.lang.toUpperCase()}</div>
@@ -367,33 +438,23 @@ socket.on('room:roster_update', (data) => {
     });
 });
 
-// ─── Transcript ───
+// ─── Receive Transcript ───
 socket.on('transcript:broadcast', (data) => {
     if (!data.text) return;
+    
+    addMessageToTranscript(data.senderName, data.text, false);
 
-    const welcome = transcriptArea.querySelector('.welcome-msg');
-    if (welcome) welcome.remove();
-
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${data.isMe ? 'self' : ''}`;
-    msgDiv.innerHTML = `
-        <div class="sender">${data.senderName}</div>
-        <div class="text">${data.text}</div>
-    `;
-    transcriptArea.appendChild(msgDiv);
-    transcriptArea.scrollTop = transcriptArea.scrollHeight;
-
-    // TTS for others' messages
     if (!data.isMe) {
-        speakText(data.text, currentHostLang);
+        setTimeout(() => speakText(data.text, currentHostLang), 500);
     }
 });
 
-// ─── Error Handling ───
+// ─── Error ───
 socket.on('error', (msg) => {
     setupError.textContent = msg;
 });
 
 socket.on('room:closed', () => {
-    window.location.reload();
+    addMessageToTranscript('Sistema', 'La sala ha sido cerrada', true);
+    setTimeout(() => window.location.reload(), 2000);
 });
