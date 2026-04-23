@@ -19,7 +19,7 @@ app.use(express.json());
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const HOST_PASSWORD = process.env.HOST_PASSWORD || 'admin123';
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
-const translationModel = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : null;
+const translationModel = genAI ? genAI.getGenerativeModel({ model: "gemini-2.5-flash" }) : null;
 
 const rooms = {};
 

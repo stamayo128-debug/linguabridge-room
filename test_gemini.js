@@ -10,7 +10,7 @@ async function test() {
     
     console.log('Key found. Initializing...');
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const text = "Hola a todos, bienvenidos a la reunión de hoy.";
     const prompt = `Translate this speech transcript accurately and naturally.
