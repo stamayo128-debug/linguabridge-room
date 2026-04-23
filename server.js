@@ -166,19 +166,20 @@ Translate to each language naturally as if someone is speaking right now.
 
 Input: "${text}"
 Languages: ${langList}
-Return ONLY valid JSON like: {"en": "translation", "fr": "traduction"}`;
+Return ONLY a valid JSON object. No markdown, no explanation. Example format: {"en": "translation", "fr": "traduction"}`;
             } else {
                 prompt = `Translate this speech transcript accurately and naturally.
 
 Input: "${text}"
 Languages: ${langList}
-Return ONLY valid JSON like: {"en": "translation", "fr": "traduction", "ja": "翻訳"}`;
+Return ONLY a valid JSON object. No markdown, no explanation. Example format: {"en": "translation", "fr": "traduction", "ja": "翻訳"}`;
             }
 
             try {
                 const result = await translationModel.generateContent(prompt);
                 const responseText = result.response.text();
-                const jsonStr = responseText.replace(/```json|```/g, '').trim();
+                const match = responseText.match(/\{[\s\S]*\}/);
+                const jsonStr = match ? match[0] : responseText.replace(/```json|```/g, '').trim();
                 const parsed = JSON.parse(jsonStr);
                 Object.assign(translations, parsed);
                 console.log('Translation successful:', Object.keys(translations));
@@ -195,7 +196,8 @@ Return ONLY valid JSON like: {"en": "translation", "fr": "traduction", "ja": "�
                 senderName: speakerName,
                 langOfSender: speakerLang,
                 text: translations[p.lang] || text,
-                isMe: p.id === socket.id
+                isMe: p.id === socket.id,
+                isInterim: streaming
             });
         });
 
@@ -204,7 +206,8 @@ Return ONLY valid JSON like: {"en": "translation", "fr": "traduction", "ja": "�
                 senderName: speakerName,
                 langOfSender: speakerLang,
                 text: translations[room.hostLang] || text,
-                isMe: room.hostId === socket.id
+                isMe: room.hostId === socket.id,
+                isInterim: streaming
             });
         }
     });

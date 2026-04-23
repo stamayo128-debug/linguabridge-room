@@ -1,477 +1,204 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>LinguaBridge - Host</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        :root {
-            --bg: #0f0f14;
-            --surface: #1a1a24;
-            --surface-light: #252532;
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --accent: #22c55e;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --text: #f1f5f9;
-            --text-dim: #94a3b8;
-            --border: rgba(255,255,255,0.08);
-        }
-        
-        html, body {
-            height: 100%;
-            font-family: 'DM Sans', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            overflow: hidden;
-        }
-        
-        .app { height: 100%; display: flex; flex-direction: column; }
-        
-        .screen { height: 100%; display: flex; flex-direction: column; }
-        .screen.hidden { display: none; }
-        
-        /* Setup */
-        .setup-screen {
-            justify-content: center;
-            padding: 32px 24px;
-            background: linear-gradient(180deg, #14141c 0%, var(--bg) 100%);
-        }
-        
-        .setup-screen h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 4px;
-            color: var(--text);
-        }
-        
-        .setup-screen .subtitle {
-            text-align: center;
-            color: var(--text-dim);
-            margin-bottom: 32px;
-            font-size: 0.9rem;
-        }
-        
-        .form-group { margin-bottom: 16px; }
-        
-        .form-group label {
-            display: block;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 14px 16px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            color: var(--text);
-            font-size: 1rem;
-            font-family: inherit;
-            outline: none;
-        }
-        
-        .form-group input:focus, .form-group select:focus {
-            border-color: var(--primary);
-        }
-        
-        .btn {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border: none;
-            border-radius: 12px;
-            color: white;
-            font-size: 1rem;
-            font-weight: 600;
-            font-family: inherit;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-        
-        .btn-secondary {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            color: var(--text-dim);
-        }
-        
-        .error { color: var(--danger); font-size: 0.85rem; text-align: center; margin-top: 12px; }
-        
-        /* Dashboard */
-        .dashboard-header {
-            padding: 16px 20px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .room-info { display: flex; align-items: center; gap: 16px; }
-        .room-code { font-size: 1.5rem; font-weight: 700; color: var(--primary); letter-spacing: 4px; }
-        
-        .header-actions { display: flex; gap: 8px; }
-        
-        .header-btn {
-            padding: 8px 12px;
-            background: var(--surface-light);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text-dim);
-            font-size: 0.8rem;
-            cursor: pointer;
-        }
-        
-        .header-btn:hover { background: var(--border); }
-        
-        .header-btn.danger { color: var(--danger); }
-        
-        /* Tabs */
-        .tabs {
-            display: flex;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .tab {
-            flex: 1;
-            padding: 14px;
-            background: none;
-            border: none;
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            font-weight: 500;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-        }
-        
-        .tab.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
-        }
-        
-        .tab-content { flex: 1; overflow-y: auto; display: none; }
-        .tab-content.active { display: block; }
-        
-        /* Transcript */
-        .transcript {
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        
-        .message {
-            padding: 14px 16px;
-            background: var(--surface);
-            border-radius: 14px;
-            border-left: 3px solid var(--primary);
-            animation: slideIn 0.3s ease;
-        }
-        
-        .message.system {
-            border-left-color: var(--accent);
-            background: rgba(34, 197, 94, 0.08);
-        }
-        
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .msg-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .sender {
-            font-size: 0.7rem;
-            font-weight: 600;
-            color: var(--primary);
-            text-transform: uppercase;
-        }
-        
-        .time { font-size: 0.7rem; color: var(--text-dim); }
-        .text { font-size: 1rem; line-height: 1.5; }
-        
-        .empty-state {
-            padding: 40px;
-            text-align: center;
-            color: var(--text-dim);
-        }
-        
-        /* Participants */
-        .participants-list { padding: 16px; }
-        
-        .participant-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 16px;
-            background: var(--surface);
-            border-radius: 12px;
-            margin-bottom: 10px;
-        }
-        
-        .participant-info { display: flex; align-items: center; gap: 12px; }
-        
-        .avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 1rem;
-        }
-        
-        .participant-name { font-weight: 600; }
-        .participant-lang { font-size: 0.75rem; color: var(--text-dim); }
-        
-        .mute-btn {
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: none;
-            font-size: 0.8rem;
-            cursor: pointer;
-        }
-        
-        .mute-btn.muted {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--danger);
-        }
-        
-        .mute-btn.speaking {
-            background: rgba(34, 197, 94, 0.2);
-            color: var(--accent);
-        }
-        
-        /* Controls */
-        .host-controls {
-            padding: 20px;
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        
-        .mic-btn {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            background: var(--surface-light);
-            border: 2px solid var(--border);
-            margin: 0 auto;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s;
-        }
-        
-        .mic-btn.active {
-            background: linear-gradient(135deg, var(--accent), #16a34a);
-            border-color: var(--accent);
-            box-shadow: 0 0 30px rgba(34, 197, 94, 0.4);
-        }
-        
-        .mic-btn svg { width: 28px; height: 28px; color: var(--text-dim); }
-        .mic-btn.active svg { color: white; }
-        
-        .mic-status {
-            text-align: center;
-            font-size: 0.85rem;
-            color: var(--text-dim);
-        }
-        
-        .mic-status.active { color: var(--accent); }
-        
-        .lang-row {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        
-        .lang-btn {
-            padding: 10px 16px;
-            background: var(--surface-light);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-        
-        .lang-btn.active {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: white;
-        }
-        
-        .toggle-row {
-            display: flex;
-            justify-content: center;
-            gap: 16px;
-        }
-        
-        .toggle-btn {
-            padding: 10px 20px;
-            background: var(--surface-light);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            cursor: pointer;
-        }
-        
-        .toggle-btn.active {
-            background: rgba(99, 102, 241, 0.2);
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-        
-        .status-bar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.75rem;
-            color: var(--text-dim);
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-dim);
-        }
-        .status-dot.connected { background: var(--accent); }
-        .status-dot.connecting { background: var(--warning); }
-        
-        .back-link {
-            display: block;
-            text-align: center;
-            margin-top: 16px;
-            color: var(--text-dim);
-            text-decoration: none;
-            font-size: 0.85rem;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { bg: '#0f0f14', surface: '#1a1a24' } } } }
+    </script>
+    <style>
+        body { font-family: 'DM Sans', sans-serif; background-color: #0f0f14; color: #f1f5f9; overflow: hidden; height: 100vh; }
+        .glass-panel { background: rgba(30, 30, 40, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        
+        /* Orb CSS */
+        @property --angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+        .siri-orb { display: grid; grid-template-areas: "stack"; overflow: hidden; border-radius: 50%; position: relative; background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 30%, transparent 70%); cursor: pointer; transition: transform 0.2s ease, opacity 0.2s, box-shadow 0.3s; margin: 0 auto; }
+        .siri-orb:hover { transform: scale(1.05); }
+        .siri-orb:active { transform: scale(0.95); }
+        .siri-orb.listening { box-shadow: 0 0 30px rgba(34, 197, 94, 0.3); }
+        .siri-orb::before { content: ""; display: block; grid-area: stack; width: 100%; height: 100%; border-radius: 50%; --c1: oklch(75% 0.15 350); --c2: oklch(80% 0.12 200); --c3: oklch(78% 0.14 280); background: conic-gradient(from calc(var(--angle) * 1.2) at 30% 65%, var(--c3) 0deg, transparent 45deg 315deg, var(--c3) 360deg), conic-gradient(from calc(var(--angle) * 0.8) at 70% 35%, var(--c2) 0deg, transparent 60deg 300deg, var(--c2) 360deg), conic-gradient(from calc(var(--angle) * -1.5) at 65% 75%, var(--c1) 0deg, transparent 90deg 270deg, var(--c1) 360deg), conic-gradient(from calc(var(--angle) * 2.1) at 25% 25%, var(--c2) 0deg, transparent 30deg 330deg, var(--c2) 360deg), conic-gradient(from calc(var(--angle) * -0.7) at 80% 80%, var(--c1) 0deg, transparent 45deg 315deg, var(--c1) 360deg), radial-gradient(ellipse 120% 80% at 40% 60%, var(--c3) 0%, transparent 50%); filter: blur(10px) contrast(1.8) saturate(1.2); animation: rotate 20s linear infinite; transform: translateZ(0); will-change: transform; }
+        .siri-orb.listening::before { --c1: oklch(70% 0.2 150); --c2: oklch(75% 0.15 180); --c3: oklch(65% 0.2 140); animation: rotate 3s linear infinite; }
+        .siri-orb::after { content: ""; display: block; grid-area: stack; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 45% 55%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 30%, transparent 60%); mix-blend-mode: overlay; }
+        @keyframes rotate { from { --angle: 0deg; } to { --angle: 360deg; } }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        .msg-enter { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .bg-glow-1 { position: absolute; top: -20%; left: -10%; width: 60vw; height: 60vw; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 60%); z-index: -1; pointer-events: none; }
+        .bg-glow-2 { position: absolute; bottom: -20%; right: -10%; width: 60vw; height: 60vw; background: radial-gradient(circle, rgba(236,72,153,0.15) 0%, transparent 60%); z-index: -1; pointer-events: none; }
+        
+        .btn-base { display: inline-flex; align-items: center; justify-content: center; border-radius: 0.5rem; transition: all 0.2s; outline: none; }
+        .btn-candy { background-color: #ec4899; color: white; }
+        .btn-candy:hover { background-color: #db2777; transform: translateY(-1px); }
+        .btn-danger { background-color: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background-color: rgba(239, 68, 68, 0.4); }
+        .btn-success { background-color: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .btn-success:hover { background-color: rgba(34, 197, 94, 0.4); }
+        .btn-default { background-color: rgba(255,255,255,0.1); color: white; }
+        .btn-default:hover { background-color: rgba(255,255,255,0.2); }
+        .btn-active { background-color: #6366f1; color: white; box-shadow: 0 0 15px rgba(99,102,241,0.4); }
+
+        .tab-btn { border-bottom: 2px solid transparent; color: #9ca3af; transition: all 0.2s; }
+        .tab-btn.active { border-bottom-color: #6366f1; color: #818cf8; }
+        .tab-content { display: none; height: 100%; }
+        .tab-content.active { display: flex; flex-direction: column; }
+    </style>
 </head>
-<body>
-    <div class="app">
-        <!-- Setup -->
-        <div class="screen" id="setup-screen">
-            <div class="setup-screen">
-                <h1>🎤 Crear Sala</h1>
-                <p class="subtitle">LinguaBridge - Host</p>
-                
-                <div class="form-group">
-                    <label>Tu nombre</label>
-                    <input type="text" id="host-name" placeholder="Presentador" value="Presentador">
+<body class="relative w-full h-full">
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+
+    <div class="h-full flex flex-col relative z-10">
+        <!-- Setup Screen -->
+        <div id="setup-screen" class="flex-1 flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-md p-8 rounded-2xl flex flex-col gap-6">
+                <div class="text-center">
+                    <h1 class="text-3xl font-bold text-white mb-2">Crear Sala</h1>
+                    <p class="text-pink-400 text-xs font-bold tracking-widest uppercase">Panel de Administrador</p>
                 </div>
                 
-                <div class="form-group">
-                    <label>Tu idioma</label>
-                    <select id="host-lang">
-                        <option value="es" selected>Español</option>
-                        <option value="en">English</option>
-                        <option value="fr">Français</option>
-                        <option value="de">Deutsch</option>
-                    </select>
+                <div class="space-y-4 mt-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tu Nombre</label>
+                        <input type="text" id="host-name" value="Moderador" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500 focus:outline-none transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tu Idioma</label>
+                        <select id="host-lang" class="w-full bg-[#1a1a24] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500 focus:outline-none transition-colors appearance-none">
+                            <option value="es">🇪🇸 Español</option>
+                            <option value="en">🇬🇧 English</option>
+                            <option value="fr">🇫🇷 Français</option>
+                            <option value="de">🇩🇪 Deutsch</option>
+                            <option value="ja">🇯🇵 日本語</option>
+                            <option value="zh">🇨🇳 中文</option>
+                            <option value="pt">🇵🇹 Português</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Contraseña Host</label>
+                        <input type="password" id="host-password" placeholder="admin123" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500 focus:outline-none transition-colors">
+                    </div>
                 </div>
                 
-                <div class="form-group">
-                    <label>Contraseña</label>
-                    <input type="password" id="host-password" placeholder="admin123">
+                <div class="flex flex-col gap-3 mt-4">
+                    <button id="create-btn" class="btn-base btn-active w-full py-3.5 text-base font-semibold shadow-lg shadow-indigo-500/30">Iniciar Sesión de Host</button>
+                    <a href="index.html" class="text-center text-sm text-gray-400 hover:text-white transition-colors mt-2">← Volver a Participante</a>
                 </div>
-                
-                <button class="btn" id="create-btn">Crear Sala</button>
-                <div class="error" id="error"></div>
-                
-                <a href="index.html" class="back-link">← Unirse a sala</a>
+                <div id="error" class="text-red-400 text-sm text-center min-h-[20px]"></div>
             </div>
         </div>
-        
-        <!-- Dashboard -->
-        <div class="screen hidden" id="dashboard-screen">
-            <div class="dashboard-header">
-                <div class="room-info">
+
+        <!-- Dashboard Screen -->
+        <div id="dashboard-screen" class="hidden flex-1 p-4 md:p-6 max-w-[1400px] mx-auto w-full flex flex-col gap-5 h-full">
+            
+            <!-- Top Bar -->
+            <div class="glass-panel rounded-xl p-4 flex justify-between items-center shrink-0 border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)]">
+                <div class="flex items-center gap-6">
                     <div>
-                        <div class="room-code" id="display-room">----</div>
-                        <div class="status-bar">
-                            <div class="status-dot" id="status-dot"></div>
-                            <span id="status-text">Conectando</span>
+                        <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">Código de Sala</div>
+                        <div class="text-2xl font-bold tracking-[0.2em] text-indigo-400 leading-none" id="display-room">----</div>
+                    </div>
+                    <div class="h-8 w-px bg-white/10 hidden md:block"></div>
+                    <div class="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/5">
+                        <div id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
+                        <span class="text-xs uppercase font-bold tracking-wider text-gray-300" id="status-text">Conectando</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="share-btn" class="btn-base btn-default px-4 py-2 text-sm font-medium">📋 Copiar Link</button>
+                    <button id="end-btn" class="btn-base btn-candy px-4 py-2 text-sm font-medium shadow-lg shadow-pink-500/20">Terminar Sala</button>
+                </div>
+            </div>
+
+            <!-- Main Layout -->
+            <div class="flex flex-col lg:flex-row gap-5 flex-1 min-h-0">
+                
+                <!-- Left Sidebar: QR & Controls -->
+                <div class="lg:w-1/4 flex flex-col gap-5 shrink-0 h-full">
+                    
+                    <!-- Host Controls & Orb -->
+                    <div class="glass-panel rounded-2xl p-6 flex flex-col gap-6 border border-white/10 flex-1">
+                        <div class="text-sm font-semibold text-gray-400 uppercase tracking-wider border-b border-white/10 pb-3 text-center">Tu Micrófono</div>
+                        
+                        <!-- Orb -->
+                        <div class="flex flex-col items-center justify-center gap-4 py-4 m-auto">
+                            <div id="mic-orb" class="siri-orb" style="width: 140px; height: 140px;"></div>
+                            <div id="mic-status" class="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-2">Apagado</div>
+                        </div>
+
+                        <div class="space-y-4 mt-auto">
+                            <div class="flex gap-2">
+                                <button id="tts-on" class="flex-1 btn-base btn-active py-2.5 text-xs rounded-lg font-medium shadow-lg shadow-indigo-500/20">🔊 TTS On</button>
+                                <button id="tts-off" class="flex-1 btn-base btn-default py-2.5 text-xs rounded-lg font-medium">🔇 TTS Off</button>
+                            </div>
+                            
+                            <div>
+                                <select id="lang-select" class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white font-medium focus:outline-none appearance-none">
+                                    <option value="es">🇪🇸 Español</option>
+                                    <option value="en">🇬🇧 English</option>
+                                    <option value="fr">🇫🇷 Français</option>
+                                    <option value="de">🇩🇪 Deutsch</option>
+                                    <option value="ja">🇯🇵 日本語</option>
+                                    <option value="zh">🇨🇳 中文</option>
+                                    <option value="pt">🇵🇹 Português</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Panel -->
+                    <div class="glass-panel rounded-2xl p-6 flex flex-col items-center justify-center gap-4 border border-white/10 shrink-0">
+                        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Escanear para unirse</div>
+                        <div class="bg-white p-3 rounded-2xl shadow-xl">
+                            <img id="qr-code" src="" alt="QR Code" class="w-32 h-32 md:w-36 md:h-36">
                         </div>
                     </div>
                 </div>
-                <div class="header-actions">
-                    <button class="header-btn" id="share-btn">📋 Copiar</button>
-                    <button class="header-btn danger" id="end-btn">✕ Salir</button>
+
+                <!-- Right Area: Tabs -->
+                <div class="lg:w-3/4 glass-panel rounded-2xl flex flex-col h-[50vh] lg:h-auto overflow-hidden border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.3)]">
+                    <div class="flex border-b border-white/10 bg-white/5 shrink-0">
+                        <button class="tab-btn active flex-1 py-4 text-sm font-semibold uppercase tracking-wider" data-tab="transcript">Transmisión en Vivo</button>
+                        <button class="tab-btn flex-1 py-4 text-sm font-semibold uppercase tracking-wider flex items-center justify-center gap-2" data-tab="participants">Participantes <span id="p-count" class="bg-indigo-500/30 text-indigo-300 py-0.5 px-2 rounded-full text-xs border border-indigo-500/20">0</span></button>
+                    </div>
+
+                    <!-- Transcript Tab -->
+                    <div id="tab-transcript" class="tab-content active p-4 md:p-6 overflow-y-auto bg-gradient-to-b from-transparent to-black/20">
+                        <div id="transcript" class="flex flex-col gap-4 min-h-full">
+                            <div class="flex flex-col items-center justify-center h-full text-gray-500 gap-4 opacity-50 my-auto">
+                                <svg class="w-16 h-16 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                                <p class="text-sm font-medium tracking-wide uppercase">El historial aparecerá aquí</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Participants Tab -->
+                    <div id="tab-participants" class="tab-content p-4 md:p-6 overflow-y-auto bg-black/10">
+                        <div id="participants-list" class="flex flex-col gap-3">
+                            <div class="flex flex-col items-center justify-center h-full text-gray-500 gap-4 mt-20 opacity-50">
+                                <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                <p class="text-sm uppercase tracking-wide font-medium">Nadie conectado aún</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="tabs">
-                <button class="tab active" data-tab="transcript">Transcript</button>
-                <button class="tab" data-tab="participants">Participantes</button>
-            </div>
-            
-            <div class="tab-content active" id="tab-transcript">
-                <div class="transcript" id="transcript">
-                    <div class="empty-state">Habla para ver la traducción aquí...</div>
-                </div>
-            </div>
-            
-            <div class="tab-content" id="tab-participants">
-                <div class="participants-list" id="participants-list">
-                    <div class="empty-state">Nadie conectado aún</div>
-                </div>
-            </div>
-            
-            <div class="host-controls">
-                <div class="toggle-row">
-                    <button class="toggle-btn active" id="tts-on">🔊 Voz ON</button>
-                    <button class="toggle-btn" id="tts-off">🔇 Voz OFF</button>
-                </div>
-                
-                <button class="mic-btn" id="mic-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" y1="19" x2="12" y2="22"/>
-                    </svg>
-                </button>
-                <div class="mic-status" id="mic-status">Micrófono apagado</div>
-                
-                <div class="lang-row" id="lang-row">
-                    <button class="lang-btn active" data-lang="es">ES</button>
-                    <button class="lang-btn" data-lang="en">EN</button>
-                    <button class="lang-btn" data-lang="fr">FR</button>
-                    <button class="lang-btn" data-lang="de">DE</button>
-                </div>
+
             </div>
         </div>
     </div>
-    
+
+    <!-- SCRIPT -->
     <script>
         const socket = io();
-        
         let currentRoom = '';
         let currentName = '';
         let currentLang = 'es';
@@ -480,40 +207,52 @@
         let recognition = null;
         let bestVoices = {};
         let mutedUsers = new Set();
-        
+
+        const micOrb = document.getElementById('mic-orb');
+        const micStatus = document.getElementById('mic-status');
+        const transcriptEl = document.getElementById('transcript');
+
+        // Tabs logic
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
         // TTS
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
             ['es','en','fr','de','ja','zh','pt'].forEach(lang => {
                 bestVoices[lang] = voices.find(v => v.lang.startsWith(lang) && (v.name.includes('Google') || v.name.includes('Neural') || v.name.includes('Siri'))) 
-                                || voices.find(v => v.lang.startsWith(lang)) 
-                                || null;
+                                || voices.find(v => v.lang.startsWith(lang)) || null;
             });
         }
         window.speechSynthesis.onvoiceschanged = loadVoices;
         loadVoices();
-        
+
         function speak(text, lang) {
             if (!ttsEnabled) return;
             window.speechSynthesis.cancel();
             const utt = new SpeechSynthesisUtterance(text);
             if (bestVoices[lang]) utt.voice = bestVoices[lang];
-            utt.lang = lang;
-            utt.rate = 1;
+            utt.lang = lang; utt.rate = 1;
             window.speechSynthesis.speak(utt);
         }
-        
+
         // STT
         function initSTT() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) return;
-            
             recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = currentLang;
             
             let lastFinal = '';
+            let lastInterimSend = 0;
             
             recognition.onresult = (e) => {
                 let final = '', interim = '';
@@ -525,231 +264,220 @@
                 
                 if (final.trim() && final !== lastFinal) {
                     lastFinal = final;
-                    const text = final.trim();
-                    console.log('Host STT:', text);
-                    socket.emit('translate:text', {
-                        roomCode: currentRoom,
-                        text: text,
-                        speakerName: currentName,
-                        speakerLang: currentLang
-                    });
+                    removeInterim();
+                    socket.emit('translate:text', { roomCode: currentRoom, text: final.trim(), speakerName: currentName, speakerLang: currentLang, streaming: false });
+                } else if (interim.trim()) {
+                    showInterim(interim.trim(), currentName);
+                    const now = Date.now();
+                    if (now - lastInterimSend > 1500) {
+                        lastInterimSend = now;
+                        socket.emit('translate:text', { roomCode: currentRoom, text: interim.trim(), speakerName: currentName, speakerLang: currentLang, streaming: true });
+                    }
                 }
             };
-            
-            recognition.onend = () => {
-                if (isMicOn && recognition) recognition.start();
-            };
+            recognition.onend = () => { if (isMicOn && recognition) recognition.start(); };
         }
-        
+
+        function showInterim(text, sender = currentName) {
+            let el = document.getElementById('interim-msg');
+            if (!el) {
+                const empty = transcriptEl.querySelector('.opacity-50');
+                if(empty) empty.remove();
+                el = document.createElement('div');
+                el.id = 'interim-msg';
+                el.className = 'msg-enter bg-white/5 border-l-2 border-yellow-500/80 rounded-r-xl p-4 mr-12 opacity-80 shadow-lg';
+                transcriptEl.appendChild(el);
+            }
+            el.innerHTML = `<div class="text-xs font-bold text-yellow-500 mb-1.5 tracking-wider uppercase flex items-center gap-2">${sender} <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-bounce"></span></div><div class="text-gray-300 italic text-[15px]">${text}</div>`;
+            transcriptEl.scrollTop = transcriptEl.scrollHeight;
+        }
+        function removeInterim() { const el = document.getElementById('interim-msg'); if (el) el.remove(); }
+
         function addMessage(sender, text, isSystem = false) {
-            const el = document.getElementById('transcript');
-            const empty = el.querySelector('.empty-state');
-            if (empty) empty.remove();
+            const empty = transcriptEl.querySelector('.opacity-50');
+            if(empty) empty.remove();
             
             const msg = document.createElement('div');
-            msg.className = `message ${isSystem ? 'system' : ''}`;
+            const isMe = sender === currentName;
+            let classes = "msg-enter p-4 md:p-5 rounded-2xl max-w-[85%] w-fit shadow-lg ";
+            if (isSystem) classes += "bg-green-500/10 border border-green-500/20 text-green-300 mx-auto text-center text-sm font-medium backdrop-blur-sm";
+            else if (isMe) classes += "bg-indigo-600/30 border border-indigo-500/30 text-white ml-auto rounded-tr-sm backdrop-blur-sm";
+            else classes += "bg-white/10 border border-white/10 text-gray-100 mr-auto rounded-tl-sm backdrop-blur-sm";
+            
+            msg.className = classes;
             const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-            msg.innerHTML = `
-                <div class="msg-header">
-                    <span class="sender">${sender}</span>
-                    <span class="time">${time}</span>
+            
+            if (isSystem) msg.innerHTML = `<div>${text}</div>`;
+            else msg.innerHTML = `
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="text-xs font-bold ${isMe ? 'text-indigo-300' : 'text-pink-400'} uppercase tracking-widest">${sender}</span>
+                    <span class="text-[10px] text-gray-400/80 font-medium">${time}</span>
                 </div>
-                <div class="text">${text}</div>
+                <div class="text-base leading-relaxed tracking-wide">${text}</div>
             `;
-            el.appendChild(msg);
-            el.scrollTop = el.scrollHeight;
+            transcriptEl.appendChild(msg);
+            transcriptEl.scrollTop = transcriptEl.scrollHeight;
         }
-        
-        // Setup
+
+        // Create Room
         document.getElementById('create-btn').addEventListener('click', async () => {
             const password = document.getElementById('host-password').value.trim();
             currentName = document.getElementById('host-name').value.trim() || 'Presentador';
             currentLang = document.getElementById('host-lang').value;
             
-            if (!password) {
-                document.getElementById('error').textContent = 'Contraseña requerida';
-                return;
-            }
+            if (!password) { document.getElementById('error').textContent = 'La contraseña es obligatoria'; return; }
+            document.getElementById('error').textContent = 'Conectando con el servidor...';
             
-            document.getElementById('error').textContent = 'Creando sala...';
+            const utt = new SpeechSynthesisUtterance(' '); utt.volume = 0; window.speechSynthesis.speak(utt);
             
-            // Warm up TTS
-            const utt = new SpeechSynthesisUtterance(' ');
-            utt.volume = 0;
-            window.speechSynthesis.speak(utt);
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+            } catch(e) { console.error(e); }
             
             initSTT();
-            
             socket.emit('host:create_room', { password });
         });
-        
-        // Socket events
+
+        // Socket logic
         socket.on('connect', () => {
-            document.getElementById('status-dot').className = 'status-dot connected';
+            document.getElementById('status-dot').className = 'w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]';
             document.getElementById('status-text').textContent = 'Conectado';
         });
         
         socket.on('disconnect', () => {
-            document.getElementById('status-dot').className = 'status-dot';
+            document.getElementById('status-dot').className = 'w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]';
             document.getElementById('status-text').textContent = 'Desconectado';
+            if(isMicOn) micOrb.click();
         });
-        
+
         socket.on('host:room_created', (data) => {
             currentRoom = data.roomCode;
-            
             document.getElementById('setup-screen').classList.add('hidden');
             document.getElementById('dashboard-screen').classList.remove('hidden');
             document.getElementById('display-room').textContent = data.roomCode;
             
-            addMessage('Sistema', 'Sala creada. ¡Bienvenido!', true);
-            
-            // Copy link
+            // Set QR Code
             const joinUrl = `${window.location.origin}/?room=${data.roomCode}`;
+            document.getElementById('qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}&margin=10&bgcolor=ffffff`;
+            
             document.getElementById('share-btn').addEventListener('click', () => {
                 navigator.clipboard.writeText(joinUrl);
-                document.getElementById('share-btn').textContent = '✓ Copiado';
-                setTimeout(() => document.getElementById('share-btn').textContent = '📋 Copiar', 2000);
+                const btn = document.getElementById('share-btn');
+                btn.textContent = '✓ Copiado al portapapeles';
+                btn.className = 'btn-base btn-active px-4 py-2 text-sm font-medium shadow-[0_0_15px_rgba(99,102,241,0.4)]';
+                setTimeout(() => {
+                    btn.textContent = '📋 Copiar Link';
+                    btn.className = 'btn-base btn-default px-4 py-2 text-sm font-medium';
+                }, 2500);
             });
             
-            // End
             document.getElementById('end-btn').addEventListener('click', () => {
-                if (confirm('¿Terminar sesión?')) {
+                if (confirm('¿Estás seguro de cerrar la sala y expulsar a todos los participantes?')) {
                     socket.emit('host:end_room', { roomCode: currentRoom });
                     window.location.reload();
                 }
             });
             
-            // Lang
-            document.getElementById('host-lang').addEventListener('change', (e) => {
+            document.getElementById('lang-select').value = currentLang;
+            document.getElementById('lang-select').addEventListener('change', (e) => {
                 currentLang = e.target.value;
                 socket.emit('host:change_lang', { roomCode: currentRoom, lang: currentLang });
                 if (recognition) recognition.lang = currentLang;
             });
             
-            // Start mic
+            // Auto start mic
             isMicOn = true;
             if (recognition) recognition.start();
             updateMicUI();
         });
-        
-        socket.on('error', (msg) => {
-            document.getElementById('error').textContent = msg;
-        });
-        
+
+        socket.on('error', (msg) => { document.getElementById('error').textContent = msg; });
+
         socket.on('transcript:broadcast', (data) => {
             if (!data.text) return;
+            if (data.isInterim) { showInterim(data.text, data.senderName); return; }
+            removeInterim();
             addMessage(data.senderName, data.text);
-            if (!data.isMe) {
-                setTimeout(() => speak(data.text, currentLang), 300);
-            }
+            if (!data.isMe) setTimeout(() => speak(data.text, currentLang), 300);
         });
-        
+
         socket.on('room:roster_update', (data) => {
             const list = document.getElementById('participants-list');
+            const count = document.getElementById('p-count');
             const participants = data.participants;
             
-            if (participants.length === 0) {
-                list.innerHTML = '<div class="empty-state">Nadie conectado aún</div>';
-                return;
+            count.textContent = participants.length;
+            
+            if (participants.length === 0) { 
+                list.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-gray-500 gap-4 mt-20 opacity-50">
+                        <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        <p class="text-sm uppercase tracking-wide font-medium">Nadie conectado aún</p>
+                    </div>`; 
+                return; 
             }
             
             const flags = {es:'🇪🇸',en:'🇬🇧',fr:'🇫🇷',de:'🇩🇪',ja:'🇯🇵',zh:'🇨🇳',pt:'🇵🇹'};
-            
             list.innerHTML = participants.map(p => {
                 const isMuted = mutedUsers.has(p.id);
                 return `
-                    <div class="participant-card">
-                        <div class="participant-info">
-                            <div class="avatar">${p.name.charAt(0).toUpperCase()}</div>
+                    <div class="glass-panel p-4 rounded-xl flex items-center justify-between border border-white/5 transition-all hover:bg-white/5">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center text-white font-bold shadow-lg">${p.name.charAt(0).toUpperCase()}</div>
                             <div>
-                                <div class="participant-name">${p.name}</div>
-                                <div class="participant-lang">${flags[p.lang]||'🌐'} ${p.lang.toUpperCase()}</div>
+                                <div class="font-semibold text-gray-100">${p.name}</div>
+                                <div class="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5"><span class="text-base">${flags[p.lang]||'🌐'}</span> ${p.lang.toUpperCase()}</div>
                             </div>
                         </div>
-                        <button class="mute-btn ${isMuted ? 'muted' : 'speaking'}" data-id="${p.id}">
-                            ${isMuted ? '🔇 Silenciar' : '🎤 Dar voz'}
+                        <button class="btn-base px-5 py-2.5 text-xs font-bold tracking-wider uppercase ${isMuted ? 'btn-success' : 'btn-danger'} mute-btn transition-transform active:scale-95" data-id="${p.id}">
+                            ${isMuted ? '🎤 Dar Voz' : '🔇 Silenciar'}
                         </button>
                     </div>
                 `;
             }).join('');
             
-            // Add click handlers
             list.querySelectorAll('.mute-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const id = btn.dataset.id;
                     if (mutedUsers.has(id)) {
-                        mutedUsers.delete(id);
-                        socket.emit('host:unmute_user', { roomCode: currentRoom, targetId: id });
+                        mutedUsers.delete(id); socket.emit('host:unmute_user', { roomCode: currentRoom, targetId: id });
                     } else {
-                        mutedUsers.add(id);
-                        socket.emit('host:mute_user', { roomCode: currentRoom, targetId: id });
+                        mutedUsers.add(id); socket.emit('host:mute_user', { roomCode: currentRoom, targetId: id });
                     }
-                    // Refresh list
-                    socket.emit('room:roster_request', { roomCode: currentRoom });
+                    socket.emit('room:roster_request', { roomCode: currentRoom }); // refresh
                 });
             });
         });
-        
-        socket.on('room:closed', () => {
-            addMessage('Sistema', 'La sala ha sido cerrada', true);
-            setTimeout(() => window.location.reload(), 2000);
-        });
-        
-        // Tabs
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-            });
-        });
-        
-        // Mic
-        const micBtn = document.getElementById('mic-btn');
-        const micStatus = document.getElementById('mic-status');
-        
-        micBtn.addEventListener('click', () => {
+
+        socket.on('room:closed', () => { setTimeout(() => window.location.reload(), 1000); });
+
+        // Controls
+        micOrb.addEventListener('click', () => {
             isMicOn = !isMicOn;
-            if (isMicOn) {
-                if (recognition) recognition.start();
-            } else {
-                if (recognition) recognition.stop();
-            }
+            if (isMicOn) { if (recognition) recognition.start(); } else { if (recognition) recognition.stop(); }
             updateMicUI();
         });
         
         function updateMicUI() {
-            micBtn.classList.toggle('active', isMicOn);
-            micStatus.textContent = isMicOn ? 'Escuchando...' : 'Micrófono apagado';
-            micStatus.classList.toggle('active', isMicOn);
+            micOrb.classList.toggle('listening', isMicOn);
+            if (isMicOn) {
+                micStatus.textContent = 'Traduciendo en vivo';
+                micStatus.className = 'text-xs font-bold text-green-400 tracking-wider uppercase animate-pulse mt-3';
+            } else {
+                micStatus.textContent = 'Micrófono apagado';
+                micStatus.className = 'text-xs font-medium text-gray-500 tracking-wider uppercase mt-3';
+            }
         }
-        
-        // Lang
-        document.getElementById('lang-row').addEventListener('click', (e) => {
-            const btn = e.target.closest('.lang-btn');
-            if (!btn) return;
-            
-            currentLang = btn.dataset.lang;
-            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            socket.emit('host:change_lang', { roomCode: currentRoom, lang: currentLang });
-            if (recognition) recognition.lang = currentLang;
+
+        // TTS
+        document.getElementById('tts-on').addEventListener('click', (e) => {
+            ttsEnabled = true; e.target.className = 'flex-1 btn-base btn-active py-2.5 text-xs rounded-lg font-medium shadow-lg shadow-indigo-500/20';
+            document.getElementById('tts-off').className = 'flex-1 btn-base btn-default py-2.5 text-xs rounded-lg font-medium';
         });
-        
-        // TTS toggle
-        document.getElementById('tts-on').addEventListener('click', () => {
-            ttsEnabled = true;
-            document.getElementById('tts-on').classList.add('active');
-            document.getElementById('tts-off').classList.remove('active');
-        });
-        
-        document.getElementById('tts-off').addEventListener('click', () => {
-            ttsEnabled = false;
-            document.getElementById('tts-on').classList.remove('active');
-            document.getElementById('tts-off').classList.add('active');
-            window.speechSynthesis.cancel();
+        document.getElementById('tts-off').addEventListener('click', (e) => {
+            ttsEnabled = false; window.speechSynthesis.cancel();
+            e.target.className = 'flex-1 btn-base btn-danger py-2.5 text-xs rounded-lg font-medium shadow-lg shadow-red-500/20';
+            document.getElementById('tts-on').className = 'flex-1 btn-base btn-default py-2.5 text-xs rounded-lg font-medium';
         });
     </script>
 </body>
