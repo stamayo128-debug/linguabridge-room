@@ -316,7 +316,9 @@
             };
             
             recognition.onend = () => {
-                if (isMicOn && recognition && isAllowedToSpeak) recognition.start();
+                if (isMicOn && recognition && isAllowedToSpeak) {
+                    try { recognition.start(); } catch(e) { console.warn(e); }
+                }
             };
         }
 
@@ -492,9 +494,13 @@
             isMicOn = !isMicOn;
             
             if (isMicOn) {
-                if (recognition) recognition.start();
+                if (recognition) {
+                    try { recognition.start(); } catch(e) { console.warn(e); }
+                }
             } else {
-                if (recognition) recognition.stop();
+                if (recognition) {
+                    try { recognition.stop(); } catch(e) { console.warn(e); }
+                }
             }
             updateMicUI();
         });

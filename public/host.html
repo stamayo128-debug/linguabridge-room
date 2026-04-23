@@ -283,7 +283,11 @@
                 isMicOn = false;
                 updateMicUI();
             };
-            recognition.onend = () => { if (isMicOn && recognition) recognition.start(); };
+            recognition.onend = () => {
+                if (isMicOn && recognition) {
+                    try { recognition.start(); } catch(e) { console.warn(e); }
+                }
+            };
         }
 
         function showInterim(text, sender = currentName) {
@@ -462,7 +466,15 @@
         // Controls
         micOrb.addEventListener('click', () => {
             isMicOn = !isMicOn;
-            if (isMicOn) { if (recognition) recognition.start(); } else { if (recognition) recognition.stop(); }
+            if (isMicOn) {
+                if (recognition) {
+                    try { recognition.start(); } catch(e) { console.warn(e); }
+                }
+            } else {
+                if (recognition) {
+                    try { recognition.stop(); } catch(e) { console.warn(e); }
+                }
+            }
             updateMicUI();
         });
         
