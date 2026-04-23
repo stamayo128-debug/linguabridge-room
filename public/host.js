@@ -194,9 +194,9 @@ async function initAudio() {
     try {
         micStream = await navigator.mediaDevices.getUserMedia({ 
             audio: { 
-                noiseSuppression: false, 
-                echoCancellation: false,
-                autoGainControl: false
+                noiseSuppression: true, 
+                echoCancellation: true,
+                autoGainControl: true
             } 
         });
         
