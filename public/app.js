@@ -6,6 +6,7 @@ let currentName = '';
 let currentLang = 'es';
 let isMicOn = false;
 let isHostMuted = false;
+let ttsEnabled = true;
 let bestVoices = {};
 let transcriptMessages = [];
 let lastStreamingTime = 0;
@@ -124,17 +125,24 @@ function initBrowserSTT() {
     if (!SpeechRecognitionAPI) {
         console.warn("Navegador no soporta reconocimiento de voz.");
         micStatus.textContent = "STT no disponible";
+        showSTTUnavailable();
         return false;
     }
 
     recognition = new SpeechRecognition();
-    recognition.onstart = () => console.log('[STT] started');
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = currentLang;
     recognition.maxAlternatives = 1;
 
     let lastFinalTranscript = '';
+
+    recognition.onstart = () => {
+        console.log('[STT] started');
+        sphereContainer?.classList.add('listening');
+        micStatus.textContent = 'Escuchando...';
+        micStatus.classList.add('listening');
+    };
 
     recognition.onresult = (event) => {
         let interimTranscript = '';
@@ -154,13 +162,13 @@ function initBrowserSTT() {
             console.log('[STT] finalTranscript', cleanedText);
             if (cleanedText !== lastFinalTranscript && cleanedText.length > 0) {
                 lastFinalTranscript = cleanedText;
-                console.log("🎤 Transcripción final:", cleanedText);
+                console.log("Transcripción final:", cleanedText);
                 
                 // Remove interim
                 const interim = transcriptArea.querySelector('.interim-text');
                 if (interim) interim.remove();
                 
-                // Send to server
+                // Send to server for translation
                 socket.emit('translate:text', {
                     roomCode: currentRoomCode,
                     text: cleanedText,
@@ -187,9 +195,19 @@ function initBrowserSTT() {
 
     recognition.onerror = (event) => {
         console.error("STT Error:", event.error);
-        if (event.error === 'no-speech') return;
+        if (event.error === 'no-speech') {
+            // This is normal, just restart
+            return;
+        }
         if (event.error === 'not-allowed') {
             micStatus.textContent = "Micrófono denegado";
+            showPermissionDenied();
+        } else if (event.error === 'network') {
+            micStatus.textContent = "Error de red - reintentando...";
+        } else if (event.error === 'aborted') {
+            // This happens when we intentionally stop, ignore
+        } else {
+            micStatus.textContent = "STT: " + event.error;
         }
     };
 
@@ -206,6 +224,36 @@ function initBrowserSTT() {
     return true;
 }
 
+function showSTTUnavailable() {
+    const msg = document.createElement('div');
+    msg.className = 'message system fade-in';
+    msg.innerHTML = `
+        <div class="msg-header">
+            <span class="sender">Sistema</span>
+        </div>
+        <div class="text">
+            Tu navegador no soporta transcripción de voz.<br>
+            <strong>Usa Chrome o Edge</strong> para mejor experiencia.
+        </div>
+    `;
+    transcriptArea.appendChild(msg);
+}
+
+function showPermissionDenied() {
+    const msg = document.createElement('div');
+    msg.className = 'message system fade-in';
+    msg.innerHTML = `
+        <div class="msg-header">
+            <span class="sender">Sistema</span>
+        </div>
+        <div class="text">
+            Acceso al micrófono denegado.<br>
+            Permite el acceso en la barra del navegador.
+        </div>
+    `;
+    transcriptArea.appendChild(msg);
+}
+
 function updateInterimUI(text) {
     const welcome = transcriptArea.querySelector('.welcome-msg');
     if (welcome) welcome.remove();
@@ -214,9 +262,17 @@ function updateInterimUI(text) {
     if (!interimSpan) {
         interimSpan = document.createElement('div');
         interimSpan.className = 'message interim-text';
+        interimSpan.innerHTML = `
+            <div class="msg-header">
+                <span class="sender" style="color: var(--warning);">🎤 ${currentName}</span>
+                <span class="time" style="color: var(--warning);">hablando...</span>
+            </div>
+            <div class="text" style="font-style: italic;">${text}...</div>
+        `;
         transcriptArea.appendChild(interimSpan);
+    } else {
+        interimSpan.querySelector('.text').innerHTML = `${text}...`;
     }
-    interimSpan.innerHTML = `<div class="text" style="opacity: 0.6; font-style: italic;">${text}...</div>`;
     transcriptArea.scrollTop = transcriptArea.scrollHeight;
 }
 
@@ -283,6 +339,7 @@ window.speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
 
 function speakText(text, lang) {
+    if (!ttsEnabled) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     if (bestVoices[lang]) utterance.voice = bestVoices[lang];
@@ -291,6 +348,21 @@ function speakText(text, lang) {
     utterance.pitch = 1;
     window.speechSynthesis.speak(utterance);
 }
+
+// ─── TTS Toggle ───
+document.addEventListener('DOMContentLoaded', () => {
+    const ttsToggle = document.getElementById('tts-toggle');
+    if (ttsToggle) {
+        ttsToggle.addEventListener('click', () => {
+            ttsEnabled = !ttsEnabled;
+            ttsToggle.textContent = ttsEnabled ? '🔊' : '🔇';
+            ttsToggle.classList.toggle('muted', !ttsEnabled);
+            if (ttsEnabled) {
+                window.speechSynthesis.cancel();
+            }
+        });
+    }
+});
 
 // ─── Join Room ───
 joinForm.addEventListener('submit', async (e) => {
@@ -332,6 +404,7 @@ socket.on('participant:joined', (data) => {
     document.getElementById('info-name').textContent = currentName;
     
     updateLangSelector(currentLang);
+    updateConnectionStatus('connected');
     
     // Start mic and STT (browser) if enabled
     if (typeof USE_BROWSER_STT !== 'undefined' && USE_BROWSER_STT) {
@@ -345,8 +418,33 @@ socket.on('participant:joined', (data) => {
     updateMicUI();
     
     // Show welcome in transcript
-    addMessageToTranscript('Sistema', '¡Bienvenido! Ahora puedes hablar.', true);
+    addMessageToTranscript('Sistema', '¡Bienvenido! Presiona el micrófono y habla.', true);
 });
+
+function updateConnectionStatus(status) {
+    const statusEl = document.getElementById('connection-status');
+    const pulseDot = document.querySelector('#panel-transcript .pulse-dot');
+    
+    if (!statusEl) return;
+    
+    if (status === 'connected') {
+        statusEl.style.background = 'rgba(34, 197, 94, 0.15)';
+        statusEl.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+        statusEl.style.color = 'var(--accent)';
+        statusEl.innerHTML = '<span style="width: 6px; height: 6px; background: var(--accent); border-radius: 50%; display: inline-block;"></span> Conectado';
+        if (pulseDot) pulseDot.classList.remove('error', 'warning');
+    } else if (status === 'connecting') {
+        statusEl.style.background = 'rgba(245, 158, 11, 0.15)';
+        statusEl.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+        statusEl.innerHTML = '<span style="width: 6px; height: 6px; background: var(--warning); border-radius: 50%; display: inline-block;"></span> Conectando...';
+        if (pulseDot) pulseDot.classList.add('warning');
+    } else if (status === 'disconnected') {
+        statusEl.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusEl.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+        statusEl.innerHTML = '<span style="width: 6px; height: 6px; background: var(--danger); border-radius: 50%; display: inline-block;"></span> Desconectado';
+        if (pulseDot) pulseDot.classList.add('error');
+    }
+}
 
 function updateLangSelector(lang) {
     document.querySelectorAll('.lang-chip').forEach(chip => {
@@ -392,10 +490,15 @@ micBtn.addEventListener('click', () => {
 
 function updateMicUI() {
     micBtn.classList.toggle('active', isMicOn);
-    micStatus.textContent = isMicOn ? '🎤 Escuchando...' : '⏸️ Micrófono apagado';
+    micStatus.textContent = isMicOn ? 'Escuchando...' : 'Micrófono apagado';
+    micStatus.classList.toggle('listening', isMicOn);
     micBtn.style.boxShadow = isMicOn 
-        ? '0 0 30px rgba(59, 130, 246, 0.6), 0 8px 30px rgba(59, 130, 246, 0.4)' 
+        ? '0 0 30px rgba(34, 197, 94, 0.5), 0 8px 30px rgba(34, 197, 94, 0.3)' 
         : '0 8px 30px rgba(0, 0, 0, 0.3)';
+    
+    if (sphereContainer) {
+        sphereContainer.classList.toggle('listening', isMicOn);
+    }
 }
 
 // ─── Transcript ───
@@ -487,3 +590,19 @@ swipeWrapper.addEventListener('touchmove', (e) => {
         e.stopPropagation();
     }
 }, { passive: true });
+
+// ─── Socket connection handling ───
+socket.on('connect', () => {
+    console.log('[Socket] Connected');
+    updateConnectionStatus('connecting');
+});
+
+socket.on('disconnect', () => {
+    console.log('[Socket] Disconnected');
+    updateConnectionStatus('disconnected');
+    addMessageToTranscript('Sistema', 'Conexión perdida. Reconectando...', true);
+});
+
+socket.on('connect_error', () => {
+    updateConnectionStatus('disconnected');
+});

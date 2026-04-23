@@ -153,7 +153,18 @@ io.on('connection', (socket) => {
     const shouldStream = streaming === true;
     if (shouldStream && activeLangs.size > 0 && translationModel) {
         const langList = Array.from(activeLangs).map(l => `${l}: ${LANG_NAMES[l] || l}`).join(', ');
-        const prompt = `Translate this text to multiple languages. \nInput text: "${text}"\nTarget languages: ${langList}\nReturn ONLY a raw JSON object where keys are the language ISO codes and values are the translation.`;
+        const prompt = `You are a real-time interpreter. Quickly translate this speech fragment naturally.
+
+IMPORTANT:
+- Translate ONLY the content between the quotes
+- Return a raw JSON object with language ISO codes as keys and translations as values
+- Do NOT include any explanation or markdown formatting
+- Keep translations concise and natural
+
+Input text: "${text}"
+Target languages: ${langList}
+
+JSON:`;
         try {
             const result = await translationModel.generateContent(prompt);
             const responseText = result.response.text();
@@ -187,10 +198,19 @@ io.on('connection', (socket) => {
 
     if (activeLangs.size > 0 && translationModel) {
         const langList = Array.from(activeLangs).map(l => `${l}: ${LANG_NAMES[l] || l}`).join(', ');
-        const prompt = `Translate this text to multiple languages. 
+        const prompt = `You are a professional simultaneous interpreter. Translate the following speech transcript accurately and naturally into each target language. Maintain the tone, style, and intent of the original speech. If the input contains informal speech, translate it informally. If it's formal, keep it formal.
+
+IMPORTANT:
+- Translate ONLY the content between the quotes
+- Return a raw JSON object with language ISO codes as keys and translations as values
+- Do NOT include any explanation, comments, or markdown formatting
+- Each translation should be a complete, natural sentence in the target language
+
 Input text: "${text}"
 Target languages: ${langList}
-Return ONLY a raw JSON object where keys are the language ISO codes and values are the translation.`;
+
+Return ONLY the JSON object like this:
+{"en": "English translation", "fr": "French translation", "ja": "Japanese translation"}`;
 
         try {
             const result = await translationModel.generateContent(prompt);
